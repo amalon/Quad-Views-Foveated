@@ -35,9 +35,11 @@
 
 #include "views.h"
 
+#ifdef _WIN32
 #include <ProjectionVS.h>
 #include <ProjectionPS.h>
 #include <SharpeningCS.h>
+#endif
 
 namespace openxr_api_layer {
 
@@ -2085,6 +2087,7 @@ namespace openxr_api_layer {
                 rect.bottom = 999;
                 ClipCursor(&rect);
 
+                // FIXME port to Linux
                 POINT cursor{};
                 GetCursorPos(&cursor);
 
