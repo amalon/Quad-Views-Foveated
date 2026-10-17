@@ -43,7 +43,8 @@ namespace openxr_api_layer::utils::inputs {
         // Use the motion controller haptics.
         MotionControllerHaptics = (1 << 2),
     };
-    DEFINE_ENUM_FLAG_OPERATORS(InputMethod);
+    // FIXME port from Windows
+    //DEFINE_ENUM_FLAG_OPERATORS(InputMethod);
 
     // Common denominator of what is supported on all controllers.
     enum class MotionControllerButton {
@@ -83,7 +84,7 @@ namespace openxr_api_layer::utils::inputs {
         virtual void pulseMotionControllerHaptics(uint32_t side, float strength) const = 0;
 
         template <typename SessionData>
-        typename SessionData* getSessionData() const {
+        SessionData* getSessionData() const {
             return reinterpret_cast<SessionData*>(getSessionDataPtr());
         }
     };
