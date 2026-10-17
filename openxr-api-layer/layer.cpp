@@ -2048,15 +2048,15 @@ namespace openxr_api_layer {
         void initializeEyeGazeInteraction(XrSession session) {
             if (m_eyeTrackerActionSet == XR_NULL_HANDLE) {
                 XrActionSetCreateInfo actionSetCreateInfo{XR_TYPE_ACTION_SET_CREATE_INFO, nullptr};
-                strcpy_s(actionSetCreateInfo.actionSetName, "quad_views_foveated_eye_tracker");
-                strcpy_s(actionSetCreateInfo.localizedActionSetName, "Eye Tracker");
+                strncpy(actionSetCreateInfo.actionSetName, "quad_views_foveated_eye_tracker", XR_MAX_ACTION_SET_NAME_SIZE);
+                strncpy(actionSetCreateInfo.localizedActionSetName, "Eye Tracker", XR_MAX_LOCALIZED_ACTION_SET_NAME_SIZE);
                 actionSetCreateInfo.priority = 0;
                 CHECK_XRCMD(
                     OpenXrApi::xrCreateActionSet(GetXrInstance(), &actionSetCreateInfo, &m_eyeTrackerActionSet));
 
                 XrActionCreateInfo actionCreateInfo{XR_TYPE_ACTION_CREATE_INFO, nullptr};
-                strcpy_s(actionCreateInfo.actionName, "quad_views_foveated_eye_tracker");
-                strcpy_s(actionCreateInfo.localizedActionName, "Eye Tracker");
+                strncpy(actionCreateInfo.actionName, "quad_views_foveated_eye_tracker", XR_MAX_ACTION_SET_NAME_SIZE);
+                strncpy(actionCreateInfo.localizedActionName, "Eye Tracker", XR_MAX_LOCALIZED_ACTION_SET_NAME_SIZE);
                 actionCreateInfo.actionType = XR_ACTION_TYPE_POSE_INPUT;
                 actionCreateInfo.countSubactionPaths = 0;
                 CHECK_XRCMD(OpenXrApi::xrCreateAction(m_eyeTrackerActionSet, &actionCreateInfo, &m_eyeGazeAction));

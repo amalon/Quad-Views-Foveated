@@ -370,7 +370,7 @@ namespace openxr_api_layer
 									break;
 								}
 
-								strcpy_s(properties[i].extensionName, advertisedExtensions[i - baseOffset].first.c_str());
+								strncpy(properties[i].extensionName, advertisedExtensions[i - baseOffset].first.c_str(), XR_MAX_EXTENSION_NAME_SIZE);
 								properties[i].extensionVersion = advertisedExtensions[i - baseOffset].second;
 							}
 						}
