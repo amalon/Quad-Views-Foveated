@@ -61,6 +61,7 @@ namespace openxr_api_layer::utils::general {
 
     // Get UV coordinates for a point on quad.
     XrVector2f getUVCoordinates(const XrVector3f& point, const XrPosef& quadCenter, const XrExtent2Df& quadSize);
+#if 0 // FIXME unused? POINT depends on Windows
     static inline POINT getUVCoordinates(const XrVector3f& point,
                                          const XrPosef& quadCenter,
                                          const XrExtent2Df& quadSize,
@@ -68,5 +69,6 @@ namespace openxr_api_layer::utils::general {
         const XrVector2f uv = getUVCoordinates(point, quadCenter, quadSize);
         return {static_cast<LONG>(uv.x * quadPixelSize.width), static_cast<LONG>(uv.y * quadPixelSize.height)};
     }
+#endif
 
 } // namespace openxr_api_layer::utils::general
