@@ -26,6 +26,8 @@
 
 namespace openxr_api_layer::log {
 
+#ifdef _WIN32
+
     TRACELOGGING_DECLARE_PROVIDER(g_traceProvider);
 
     extern TraceLoggingActivity<g_traceProvider> g_traceGlobal;
@@ -41,6 +43,29 @@ namespace openxr_api_layer::log {
 #else
 #define TLXArg TLPArg
 #endif
+
+#else // _WIN32
+
+// FIXME port to Linux, gpuvis?
+
+#define IsTraceEnabled() false
+
+#define TraceLocalActivity(activity) do {} while (false)
+#define TraceLoggingWriteStart(activity, ...) do {} while (false)
+#define TraceLoggingWriteTagged(activity, ...) do {} while (false)
+#define TraceLoggingWriteStop(activity, ...) do {} while (false)
+#define TraceLoggingWrite(activity, ...) do {} while (false)
+#define OutputDebugStringA(...) do {} while (false)
+
+#define TLArg(var, ...) do {} while (0)
+#define TLPArg(var, ...) do {} while (0)
+#ifdef _M_IX86
+#define TLXArg TLArg
+#else
+#define TLXArg TLPArg
+#endif
+
+#endif // _WIN32
 
     // General logging function.
     void Log(const char* fmt, ...);
