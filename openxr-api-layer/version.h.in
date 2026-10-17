@@ -1,0 +1,3 @@
+const unsigned int LayerVersionMajor = @XrApiLayer_quad_views_foveated_MAJOR_VERSION@;
+const unsigned int LayerVersionMinor = @XrApiLayer_quad_views_foveated_MINOR_VERSION@;
+const unsigned int LayerVersionPatch = @XrApiLayer_quad_views_foveated_PATCH_VERSION@;
