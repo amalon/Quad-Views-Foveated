@@ -28,6 +28,12 @@
 #include "log.h"
 #include "version.h"
 
+#if defined(_WIN32)
+#define OPENXR_API_LAYER_EXPORT __declspec(dllexport)
+#else
+#define OPENXR_API_LAYER_EXPORT
+#endif
+
 namespace openxr_api_layer {
     // The path where the DLL is loaded from (eg: to load data files).
     std::filesystem::path dllHome;
@@ -50,12 +56,13 @@ using namespace openxr_api_layer::log;
 extern "C" {
 
 // Entry point for the loader.
-XrResult __declspec(dllexport) XRAPI_CALL
+XrResult OPENXR_API_LAYER_EXPORT XRAPI_CALL
     xrNegotiateLoaderApiLayerInterface(const XrNegotiateLoaderInfo* const loaderInfo,
                                        const char* const apiLayerName,
                                        XrNegotiateApiLayerRequest* const apiLayerRequest) {
     TraceLoggingWrite(g_traceProvider, "xrNegotiateLoaderApiLayerInterface");
 
+#ifdef _WIN32
     // Retrieve the path of the DLL.
     if (dllHome.empty()) {
         HMODULE module;
@@ -67,9 +74,10 @@ XrResult __declspec(dllexport) XRAPI_CALL
             dllHome = std::filesystem::path(path).parent_path();
         }
     }
+#endif
 
     localAppData = std::filesystem::path(getenv("LOCALAPPDATA")) / LayerPrettyName;
-    CreateDirectoryA(localAppData.string().c_str(), nullptr);
+    std::filesystem::create_directory(localAppData.string());
 
     // Start logging to file.
     if (!logStream.is_open()) {
@@ -101,8 +109,8 @@ XrResult __declspec(dllexport) XRAPI_CALL
     // Setup our layer to intercept OpenXR calls.
     apiLayerRequest->layerInterfaceVersion = XR_CURRENT_LOADER_API_LAYER_VERSION;
     apiLayerRequest->layerApiVersion = XR_CURRENT_API_VERSION;
-    apiLayerRequest->getInstanceProcAddr = reinterpret_cast<PFN_xrGetInstanceProcAddr>(xrGetInstanceProcAddr);
-    apiLayerRequest->createApiLayerInstance = reinterpret_cast<PFN_xrCreateApiLayerInstance>(xrCreateApiLayerInstance);
+    apiLayerRequest->getInstanceProcAddr = reinterpret_cast<PFN_xrGetInstanceProcAddr>(openxr_api_layer::xrGetInstanceProcAddr);
+    apiLayerRequest->createApiLayerInstance = reinterpret_cast<PFN_xrCreateApiLayerInstance>(openxr_api_layer::xrCreateApiLayerInstance);
 
     DebugLog("<-- xrNegotiateLoaderApiLayerInterface\n");
 
