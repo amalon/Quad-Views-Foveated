@@ -22,11 +22,6 @@
 
 #pragma once
 
-// Uncomment below the graphics frameworks used by the layer.
-
-#define XR_USE_GRAPHICS_API_D3D11
-#define XR_USE_GRAPHICS_API_D3D12
-
 // Standard library.
 #include <algorithm>
 #include <array>
@@ -50,6 +45,13 @@
 #include <cmath>
 
 using namespace std::chrono_literals;
+
+#ifdef _WIN32
+
+// Uncomment below the graphics frameworks used by the layer.
+
+#define XR_USE_GRAPHICS_API_D3D11
+#define XR_USE_GRAPHICS_API_D3D12
 
 // Windows header files.
 #define WIN32_LEAN_AND_MEAN // Exclude rarely-used stuff from Windows headers
@@ -75,20 +77,29 @@ using Microsoft::WRL::ComPtr;
 // OpenXR + Windows-specific definitions.
 #define XR_NO_PROTOTYPES
 #define XR_USE_PLATFORM_WIN32
+
+#endif // _WIN32
+
 #include <openxr/openxr.h>
 #include <openxr/openxr_platform.h>
 
 // OpenXR loader interfaces.
 #include <loader_interfaces.h>
 
-// OpenXR/DirectX utilities.
+// Portable headers
 #include <XrError.h>
+
+#ifdef _WIN32
+
+// OpenXR/DirectX utilities.
 #include <XrMath.h>
 #include <XrSide.h>
 #include <XrStereoView.h>
 #include <XrToString.h>
 #include <ScopeGuard.h>
 #include <DirectXCollision.h>
+
+#endif // _WIN32
 
 // FMT formatter.
 #include <fmt/format.h>
