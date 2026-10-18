@@ -1,12 +1,15 @@
+// Ported from XrMath.h by James Hogan
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
 #pragma once
 
 #include <openxr/openxr.h>
-#include <DirectXMath.h>
 #include <stdexcept>
 #include <cmath>
+
+#include <glm/mat4x4.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 namespace xr::math {
     constexpr float QuaternionEpsilon = 0.01f;
@@ -47,11 +50,13 @@ namespace xr::math {
         float Far;
     };
 
+#if 0 // FIXME NearFar changes meaning
     struct ViewProjection {
         XrPosef Pose;
         XrFovf Fov;
         NearFar NearFar;
     };
+#endif
 
     // Type conversion between math types.
     // If you get the error "attempting to reference a deleted function" then you need to implement
@@ -59,27 +64,10 @@ namespace xr::math {
     template <typename X, typename Y>
     constexpr const X& cast(const Y& value) = delete;
 
-    // Convert XR types to DX
-    DirectX::XMVECTOR XM_CALLCONV LoadXrVector2(const XrVector2f& vector);
-    DirectX::XMVECTOR XM_CALLCONV LoadXrVector3(const XrVector3f& vector);
-    DirectX::XMVECTOR XM_CALLCONV LoadXrVector4(const XrVector4f& vector);
-    DirectX::XMVECTOR XM_CALLCONV LoadXrQuaternion(const XrQuaternionf& quaternion);
-    DirectX::XMMATRIX XM_CALLCONV LoadXrPose(const XrPosef& rigidTransform);
-    DirectX::XMMATRIX XM_CALLCONV LoadInvertedXrPose(const XrPosef& rigidTransform);
-    DirectX::XMVECTOR XM_CALLCONV LoadXrExtent(const XrExtent2Df& extend);
-
-    // Convert DX types to XR
-    void XM_CALLCONV StoreXrVector2(XrVector2f* outVec, DirectX::FXMVECTOR inVec);
-    void XM_CALLCONV StoreXrVector3(XrVector3f* outVec, DirectX::FXMVECTOR inVec);
-    void XM_CALLCONV StoreXrVector4(XrVector4f* outVec, DirectX::FXMVECTOR inVec);
-    void XM_CALLCONV StoreXrQuaternion(XrQuaternionf* outQuat, DirectX::FXMVECTOR inQuat);
-    bool XM_CALLCONV StoreXrPose(XrPosef* out, DirectX::FXMMATRIX matrix);
-    void XM_CALLCONV StoreXrExtent(XrExtent2Df* extend, DirectX::FXMVECTOR inVec);
-
     // Projection matrix math
-    DirectX::XMMATRIX ComposeProjectionMatrix(const XrFovf& fov, const NearFar& nearFar);
-    NearFar GetProjectionNearFar(const DirectX::XMFLOAT4X4& projectionMatrix);
-    XrFovf DecomposeProjectionMatrix(const DirectX::XMFLOAT4X4& projectionMatrix);
+    glm::mat4 ComposeProjectionMatrix(const XrFovf& fov, const NearFar& nearFar);
+    //NearFar GetProjectionNearFar(const glm::mat4& projectionMatrix);
+    XrFovf DecomposeProjectionMatrix(const glm::mat4& projectionMatrix);
 } // namespace xr::math
 
 #pragma region Implementation
@@ -106,72 +94,6 @@ namespace xr::math {
             return reinterpret_cast<X&>(value);
         }
     } // namespace detail
-
-#define DEFINE_CAST(X, Y)                             \
-    template <>                                       \
-    constexpr const X& cast<X, Y>(const Y& value) {   \
-        return detail::implement_math_cast<X>(value); \
-    }
-
-    static_assert(offsetof(DirectX::XMFLOAT2, x) == offsetof(XrVector2f, x));
-    static_assert(offsetof(DirectX::XMFLOAT2, y) == offsetof(XrVector2f, y));
-    DEFINE_CAST(XrVector2f, DirectX::XMFLOAT2);
-    DEFINE_CAST(DirectX::XMFLOAT2, XrVector2f);
-
-    static_assert(offsetof(DirectX::XMFLOAT3, x) == offsetof(XrVector3f, x));
-    static_assert(offsetof(DirectX::XMFLOAT3, y) == offsetof(XrVector3f, y));
-    static_assert(offsetof(DirectX::XMFLOAT3, z) == offsetof(XrVector3f, z));
-    DEFINE_CAST(XrVector3f, DirectX::XMFLOAT3);
-    DEFINE_CAST(DirectX::XMFLOAT3, XrVector3f);
-
-    static_assert(offsetof(DirectX::XMFLOAT4, x) == offsetof(XrVector4f, x));
-    static_assert(offsetof(DirectX::XMFLOAT4, y) == offsetof(XrVector4f, y));
-    static_assert(offsetof(DirectX::XMFLOAT4, z) == offsetof(XrVector4f, z));
-    static_assert(offsetof(DirectX::XMFLOAT4, w) == offsetof(XrVector4f, w));
-    DEFINE_CAST(XrVector4f, DirectX::XMFLOAT4);
-    DEFINE_CAST(DirectX::XMFLOAT4, XrVector4f);
-
-    static_assert(offsetof(DirectX::XMFLOAT4, x) == offsetof(XrQuaternionf, x));
-    static_assert(offsetof(DirectX::XMFLOAT4, y) == offsetof(XrQuaternionf, y));
-    static_assert(offsetof(DirectX::XMFLOAT4, z) == offsetof(XrQuaternionf, z));
-    static_assert(offsetof(DirectX::XMFLOAT4, w) == offsetof(XrQuaternionf, w));
-    DEFINE_CAST(XrQuaternionf, DirectX::XMFLOAT4);
-    DEFINE_CAST(DirectX::XMFLOAT4, XrQuaternionf);
-
-    static_assert(offsetof(DirectX::XMINT2, x) == offsetof(XrExtent2Di, width));
-    static_assert(offsetof(DirectX::XMINT2, y) == offsetof(XrExtent2Di, height));
-    DEFINE_CAST(XrExtent2Di, DirectX::XMINT2);
-    DEFINE_CAST(DirectX::XMINT2, XrExtent2Di);
-
-    static_assert(offsetof(DirectX::XMFLOAT2, x) == offsetof(XrExtent2Df, width));
-    static_assert(offsetof(DirectX::XMFLOAT2, y) == offsetof(XrExtent2Df, height));
-    DEFINE_CAST(XrExtent2Df, DirectX::XMFLOAT2);
-    DEFINE_CAST(DirectX::XMFLOAT2, XrExtent2Df);
-
-    static_assert(offsetof(DirectX::XMFLOAT4, x) == offsetof(XrColor4f, r));
-    static_assert(offsetof(DirectX::XMFLOAT4, y) == offsetof(XrColor4f, g));
-    static_assert(offsetof(DirectX::XMFLOAT4, z) == offsetof(XrColor4f, b));
-    static_assert(offsetof(DirectX::XMFLOAT4, w) == offsetof(XrColor4f, a));
-    DEFINE_CAST(XrColor4f, DirectX::XMFLOAT4);
-    DEFINE_CAST(DirectX::XMFLOAT4, XrColor4f);
-
-#undef DEFINE_CAST
-
-    // Shortcut non-templated overload of cast() function
-#define DEFINE_CAST(X, Y)                             \
-    constexpr const X& cast(const Y& value) {         \
-        return detail::implement_math_cast<X>(value); \
-    }                                                 \
-    constexpr X& cast(Y& value) {                     \
-        return detail::implement_math_cast<X>(value); \
-    }
-
-    DEFINE_CAST(DirectX::XMFLOAT2, XrVector2f);
-    DEFINE_CAST(DirectX::XMFLOAT3, XrVector3f);
-    DEFINE_CAST(DirectX::XMFLOAT4, XrVector4f);
-    DEFINE_CAST(DirectX::XMFLOAT4, XrQuaternionf);
-    DEFINE_CAST(DirectX::XMFLOAT2, XrExtent2Df);
-#undef DEFINE_CAST
 
 #define VECTOR2F_OPERATOR(op)                                                    \
     constexpr XrVector2f operator op(const XrVector2f& a, const XrVector2f& b) { \
@@ -233,50 +155,61 @@ namespace xr::math {
     VECTOR3F_OPERATOR(/);
 #undef VECTOR3F_OPERATOR
 
-    inline DirectX::XMVECTOR XM_CALLCONV LoadXrVector2(const XrVector2f& vector) {
-        return DirectX::XMLoadFloat2(&xr::math::cast(vector));
+    inline glm::vec2 LoadXrVector2(const XrVector2f& vector) {
+        return glm::vec2(vector.x, vector.y);
     }
 
-    inline DirectX::XMVECTOR XM_CALLCONV LoadXrVector3(const XrVector3f& vector) {
-        return DirectX::XMLoadFloat3(&xr::math::cast(vector));
+    inline glm::vec3 LoadXrVector3(const XrVector3f& vector) {
+        return glm::vec3(vector.x, vector.y, vector.z);
     }
 
-    inline DirectX::XMVECTOR XM_CALLCONV LoadXrVector4(const XrVector4f& vector) {
-        return DirectX::XMLoadFloat4(&xr::math::cast(vector));
+    inline glm::vec4 LoadXrVector4(const XrVector4f& vector) {
+        return glm::vec4(vector.x, vector.y, vector.z, vector.w);
     }
 
-    inline DirectX::XMVECTOR XM_CALLCONV LoadXrQuaternion(const XrQuaternionf& quaternion) {
-        return DirectX::XMLoadFloat4(&xr::math::cast(quaternion));
+    inline glm::quat LoadXrQuaternion(const XrQuaternionf& quaternion) {
+        return glm::quat(quaternion.x, quaternion.y, quaternion.z, quaternion.w);
     }
 
+#if 0
     inline DirectX::XMVECTOR XM_CALLCONV LoadXrExtent(const XrExtent2Df& extend) {
         return DirectX::XMLoadFloat2(&xr::math::cast(extend));
     }
+#endif
 
-    inline DirectX::XMMATRIX XM_CALLCONV LoadXrPose(const XrPosef& pose) {
-        const DirectX::XMVECTOR orientation = LoadXrQuaternion(pose.orientation);
-        const DirectX::XMVECTOR position = LoadXrVector3(pose.position);
-        DirectX::XMMATRIX matrix = DirectX::XMMatrixRotationQuaternion(orientation);
-        matrix.r[3] = DirectX::XMVectorAdd(matrix.r[3], position);
+    inline glm::mat4 LoadXrPose(const XrPosef& pose) {
+        glm::quat orientation = LoadXrQuaternion(pose.orientation);
+        glm::vec3 position = LoadXrVector3(pose.position);
+        glm::mat4 matrix = glm::mat4_cast(orientation);
+        matrix[3] += glm::vec4(position, 0.0f);
         return matrix;
     }
 
+#ifdef _WIN32
     inline DirectX::XMMATRIX XM_CALLCONV LoadInvertedXrPose(const XrPosef& pose) {
         return LoadXrPose(Pose::Invert(pose));
     }
+#endif
 
-    inline void XM_CALLCONV StoreXrVector2(XrVector2f* outVec, DirectX::FXMVECTOR inVec) {
-        DirectX::XMStoreFloat2(&detail::implement_math_cast<DirectX::XMFLOAT2>(*outVec), inVec);
+    inline void StoreXrVector2(XrVector2f* outVec, const glm::vec2 &inVec) {
+        outVec->x = inVec[0];
+        outVec->y = inVec[1];
     }
 
-    inline void XM_CALLCONV StoreXrVector3(XrVector3f* outVec, DirectX::FXMVECTOR inVec) {
-        DirectX::XMStoreFloat3(&detail::implement_math_cast<DirectX::XMFLOAT3>(*outVec), inVec);
+    inline void StoreXrVector3(XrVector3f* outVec, const glm::vec3 &inVec) {
+        outVec->x = inVec[0];
+        outVec->y = inVec[1];
+        outVec->z = inVec[2];
     }
 
-    inline void XM_CALLCONV StoreXrVector4(XrVector4f* outVec, DirectX::FXMVECTOR inVec) {
-        DirectX::XMStoreFloat4(&detail::implement_math_cast<DirectX::XMFLOAT4>(*outVec), inVec);
+    inline void StoreXrVector4(XrVector4f* outVec, const glm::vec4 &inVec) {
+        outVec->x = inVec[0];
+        outVec->y = inVec[1];
+        outVec->z = inVec[2];
+        outVec->w = inVec[3];
     }
 
+#if _WIN32
     inline void XM_CALLCONV StoreXrQuaternion(XrQuaternionf* outQuat, DirectX::FXMVECTOR inQuat) {
         DirectX::XMStoreFloat4(&detail::implement_math_cast<DirectX::XMFLOAT4>(*outQuat), inQuat);
     }
@@ -298,6 +231,7 @@ namespace xr::math {
         StoreXrVector3(&out->position, position);
         return true;
     }
+#endif // _WIN32
 
     namespace Pose {
         constexpr XrPosef Identity() {
@@ -310,6 +244,7 @@ namespace xr::math {
             return pose;
         }
 
+#ifdef _WIN32
         inline XrPosef LookAt(const XrVector3f& origin, const XrVector3f& forward, const XrVector3f& up) {
             DirectX::XMMATRIX virtualToGazeOrientation =
                 DirectX::XMMatrixLookToRH(xr::math::LoadXrVector3(origin), xr::math::LoadXrVector3(forward), xr::math::LoadXrVector3(up));
@@ -318,11 +253,13 @@ namespace xr::math {
 
             return pose;
         }
+#endif
 
         inline XrPosef Slerp(const XrPosef& a, const XrPosef& b, float alpha) {
             return MakePose(Quaternion::Slerp(a.orientation, b.orientation, alpha), a.position + (b.position - a.position) * alpha);
         }
 
+#ifdef _WIN32
         inline XrPosef Invert(const XrPosef& pose) {
             const DirectX::XMVECTOR orientation = LoadXrQuaternion(pose.orientation);
             const DirectX::XMVECTOR invertOrientation = DirectX::XMQuaternionConjugate(orientation);
@@ -357,6 +294,7 @@ namespace xr::math {
             StoreXrVector3(&c.position, DirectX::XMVectorAdd(DirectX::XMVector3Rotate(pa, qb), pb));
             return c;
         }
+#endif
 
         constexpr bool IsPoseValid(XrSpaceLocationFlags locationFlags) {
             constexpr XrSpaceLocationFlags PoseValidFlags = XR_SPACE_LOCATION_POSITION_VALID_BIT | XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
@@ -401,6 +339,7 @@ namespace xr::math {
         }
     } // namespace Pose
 
+#ifdef _WIN32
     namespace Quaternion {
         constexpr inline XrQuaternionf Identity() {
             return {0, 0, 0, 1};
@@ -437,6 +376,7 @@ namespace xr::math {
         }
 
     } // namespace Quaternion
+#endif // _WIN32
 
     inline XrPosef operator*(const XrPosef& a, const XrPosef& b) {
         return Pose::Multiply(a, b);
@@ -458,128 +398,123 @@ namespace xr::math {
     // 0                  2 * n / (t - b)    0                    0
     // (r + l) / (r - l)  (t + b) / (t - b)  f / (n - f)         -1
     // 0                  0                  n*f / (n - f)        0
-    inline DirectX::XMMATRIX ComposeProjectionMatrix(const XrFovf& fov, const NearFar& nearFar) {
-        const auto ValidateFovAngle = [](float angle) {
-            if (angle >= DirectX::XM_PIDIV2 || angle <= -DirectX::XM_PIDIV2) {
-                throw std::runtime_error("Invalid projection specification");
-            }
-        };
-        ValidateFovAngle(fov.angleLeft);
-        ValidateFovAngle(fov.angleRight);
-        ValidateFovAngle(fov.angleUp);
-        ValidateFovAngle(fov.angleDown);
-        if (fabs(fov.angleLeft - fov.angleRight) < std::numeric_limits<float>::epsilon() ||
-            fabs(fov.angleUp - fov.angleDown) < std::numeric_limits<float>::epsilon()) {
-            throw std::runtime_error("Invalid projection specification");
-        }
+    inline glm::mat4 ComposeProjectionMatrix(const XrFovf& fov, const NearFar& nearFar) {
+        const float tanAngleLeft = tanf(fov.angleLeft);
+        const float tanAngleRight = tanf(fov.angleRight);
 
-        const float nearPlane = nearFar.Near;
-        const float farPlane = nearFar.Far;
-        const bool infNearPlane = isinf(nearPlane);
-        const bool infFarPlane = isinf(farPlane);
+        const float tanAngleDown = tanf(fov.angleDown);
+        const float tanAngleUp = tanf(fov.angleUp);
 
-        float l = tan(fov.angleLeft);
-        float r = tan(fov.angleRight);
-        float b = tan(fov.angleDown);
-        float t = tan(fov.angleUp);
-        if (!infNearPlane) {
-            l *= nearPlane;
-            r *= nearPlane;
-            b *= nearPlane;
-            t *= nearPlane;
-        }
+        const float tanAngleWidth = tanAngleRight - tanAngleLeft;
 
-        if (nearPlane < 0.f || farPlane < 0.f) {
-            throw std::runtime_error("Invalid projection specification");
-        }
+        // Set to tanAngleDown - tanAngleUp for a clip space with positive Y
+        // down (Vulkan). Set to tanAngleUp - tanAngleDown for a clip space with
+        // positive Y up (OpenGL / D3D / Metal).
+        const float tanAngleHeight = tanAngleUp - tanAngleDown;
 
-        if (infNearPlane || infFarPlane) {
-            if (infNearPlane && infFarPlane) {
-                throw std::runtime_error("Invalid projection specification");
-            }
+        // Set to nearFar.Near for a [-1,1] Z clip space (OpenGL / OpenGL ES).
+        // Set to zero for a [0,1] Z clip space (Vulkan / D3D / Metal).
+        const float offsetZ = nearFar.Near;
 
-            const float reciprocalWidth = 1.0f / (r - l);
-            const float reciprocalHeight = 1.0f / (t - b);
+        glm::mat4 result;
+        // FIXME isinf(nearFar.Far)?
+        if (nearFar.Far <= nearFar.Near)
+        {
+            // place the far plane at infinity
+            result[0][0] = 2 / tanAngleWidth;
+            result[1][0] = 0;
+            result[2][0] = (tanAngleRight + tanAngleLeft) / tanAngleWidth;
+            result[3][0] = 0;
 
-            DirectX::XMFLOAT4X4 projectionMatrix;
+            result[0][1] = 0;
+            result[1][1] = 2 / tanAngleHeight;
+            result[2][1] = (tanAngleUp + tanAngleDown) / tanAngleHeight;
+            result[3][1] = 0;
 
-            float twoNearZ;
-            if (infNearPlane) {
-                twoNearZ = 2;
+            result[0][2] = 0;
+            result[1][2] = 0;
+            result[2][2] = -1;
+            result[3][2] = -(nearFar.Near + offsetZ);
 
-                projectionMatrix._33 = 0.0f;     // far / (near - far) = far / inf = 0
-                projectionMatrix._43 = farPlane; // near * far / (near - far) = far * (near / (near - far)) = far * (inf / inf) = far
-            } else {
-                twoNearZ = nearPlane + nearPlane;
-
-                projectionMatrix._33 = -1.0f;      // far / (near - far) = inf / -inf = -1
-                projectionMatrix._43 = -nearPlane; // near * far / (near - far) = near * inf / -inf = -near
-            }
-
-            projectionMatrix._11 = twoNearZ * reciprocalWidth;
-            projectionMatrix._12 = 0.0f;
-            projectionMatrix._13 = 0.0f;
-            projectionMatrix._14 = 0.0f;
-
-            projectionMatrix._21 = 0.0f;
-            projectionMatrix._22 = twoNearZ * reciprocalHeight;
-            projectionMatrix._23 = 0.0f;
-            projectionMatrix._24 = 0.0f;
-
-            projectionMatrix._31 = (l + r) * reciprocalWidth;
-            projectionMatrix._32 = (t + b) * reciprocalHeight;
-            projectionMatrix._34 = -1.0f;
-
-            projectionMatrix._41 = 0.0f;
-            projectionMatrix._42 = 0.0f;
-            projectionMatrix._44 = 0.0f;
-
-            return DirectX::XMLoadFloat4x4(&projectionMatrix);
+            result[0][3] = 0;
+            result[1][3] = 0;
+            result[2][3] = -1;
+            result[3][3] = 0;
         } else {
-            return DirectX::XMMatrixPerspectiveOffCenterRH(l, r, b, t, nearPlane, farPlane);
+            // normal projection
+            result[0][0] = 2 / tanAngleWidth;
+            result[1][0] = 0;
+            result[2][0] = (tanAngleRight + tanAngleLeft) / tanAngleWidth;
+            result[3][0] = 0;
+
+            result[0][1] = 0;
+            result[1][1] = 2 / tanAngleHeight;
+            result[2][1] = (tanAngleUp + tanAngleDown) / tanAngleHeight;
+            result[3][1] = 0;
+
+            result[0][2] = 0;
+            result[1][2] = 0;
+            result[2][2] = -(nearFar.Far + offsetZ) / (nearFar.Far - nearFar.Near);
+            result[3][2] = -(nearFar.Far * (nearFar.Near + offsetZ)) / (nearFar.Far - nearFar.Near);
+
+            result[0][3] = 0;
+            result[1][3] = 0;
+            result[2][3] = -1;
+            result[3][3] = 0;
         }
+
+        return result;
     }
 
-    inline bool IsInfiniteNearPlaneProjectionMatrix(const DirectX::XMFLOAT4X4& p) {
-        return (p._33 == 0);
+    inline bool IsInfiniteNearPlaneProjectionMatrix(const glm::mat4& p) {
+        return (p[2][2] == 0);
     }
 
-    inline bool IsInfiniteFarPlaneProjectionMatrix(const DirectX::XMFLOAT4X4& p) {
-        return (p._33 == -1);
+    inline bool IsInfiniteFarPlaneProjectionMatrix(const glm::mat4& p) {
+        return (p[2][2] == -1);
     }
 
-    inline void ValidateProjectionMatrix(const DirectX::XMFLOAT4X4& p) {
+    inline void ValidateProjectionMatrix(const glm::mat4& p) {
         // Reference equations on top of ComposeProjectionMatrix() above.
-        if (p._12 != 0 || p._13 != 0 || p._14 != 0 ||
-            // p._21 is not 0 on old MR devices, but small enough to be ignored. For future MR devices, it should be 0 (no shear)
-            p._23 != 0 || p._24 != 0 ||
-            // When near or far plane is infinite, p._33 is 0 or -1, respectively. They are valid cases.
-            p._34 != -1 || p._41 != 0 || p._42 != 0 || p._44 != 0) {
+        if (p[0][1] != 0 || p[0][2] != 0 || p[0][3] != 0 ||
+            // p[1][0] is not 0 on old MR devices, but small enough to be ignored. For future MR devices, it should be 0 (no shear)
+            p[1][2] != 0 || p[1][3] != 0 ||
+            // When near or far plane is infinite, p[2][2] is 0 or -1, respectively. They are valid cases.
+            p[2][3] != -1 || p[3][0] != 0 || p[3][1] != 0 || p[3][3] != 0) {
             throw std::runtime_error("Invalid projection matrix");
         }
     }
 
-    inline NearFar GetProjectionNearFar(const DirectX::XMFLOAT4X4& p) {
+#if 0
+    inline NearFar GetProjectionNearFar(const glm::mat4& p) {
         ValidateProjectionMatrix(p);
 
         NearFar d;
 
         if (IsInfiniteNearPlaneProjectionMatrix(p)) {
             d.Near = std::numeric_limits<float>::infinity();
-            d.Far = p._43;
+            d.Far = p[3][2]/2;
         } else if (IsInfiniteFarPlaneProjectionMatrix(p)) {
-            d.Near = -p._43;
+            d.Near = -p[3][2]/2;
             d.Far = std::numeric_limits<float>::infinity();
         } else {
+            //p[2][2] = -(Far + Near) / (Far - Near);
+            //p[3][2] = -Far * 2Near / (Far - Near);
+            //p[3][2] / p[2][2] = -(Far * 2Near) / -(Far + Near)
+            //                  =  Far * 2Near / (Far + Near)
+            //                  =  
+            //
             // Reference equations on top of ComposeProjectionMatrix() above.
-            d.Near = p._43 / p._33;
-            d.Far = p._43 / (1 + p._33);
+            // FIXME
+            d.Near = p[3][2] / p[2][2];
+            d.Far = p[2][3] / (1 + p[2][2]);
         }
 
         return d;
     }
+#endif
 
-    inline XrFovf DecomposeProjectionMatrix(const DirectX::XMFLOAT4X4& p) {
+    inline XrFovf DecomposeProjectionMatrix(const glm::mat4& p) {
         ValidateProjectionMatrix(p);
 
         // n = m43 / m33
@@ -589,10 +524,11 @@ namespace xr::math {
         // b = n * (m32 - 1) / m22  => and
         // t = n * (m32 + 1) / m22  => so forth
         XrFovf fov;
-        fov.angleLeft = atan2(p._31 - 1, p._11);
-        fov.angleRight = atan2(p._31 + 1, p._11);
-        fov.angleDown = atan2(p._32 - 1, p._22);
-        fov.angleUp = atan2(p._32 + 1, p._22);
+        // FIXME correct?
+        fov.angleLeft = atan2(p[2][0] - 1, p[0][0]);
+        fov.angleRight = atan2(p[2][0] + 1, p[0][0]);
+        fov.angleDown = atan2(p[2][1] - 1, p[1][1]);
+        fov.angleUp = atan2(p[2][1] + 1, p[1][1]);
         return fov;
     }
 
