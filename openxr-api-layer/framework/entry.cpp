@@ -74,9 +74,12 @@ XrResult OPENXR_API_LAYER_EXPORT XRAPI_CALL
             dllHome = std::filesystem::path(path).parent_path();
         }
     }
-#endif
 
     localAppData = std::filesystem::path(getenv("LOCALAPPDATA")) / LayerPrettyName;
+#else
+    localAppData = std::filesystem::path(getenv("XDG_RUNTIME_DIR")) / LayerPrettyName;
+#endif
+
     std::filesystem::create_directory(localAppData.string());
 
     // Start logging to file.

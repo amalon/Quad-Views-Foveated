@@ -31,7 +31,7 @@ add_compile_definitions(LAYER_NAME="${LAYER_NAME}")
 
 # Generate API layer json file
 file(READ "${CMAKE_CURRENT_LIST_DIR}/openxr-api-layer.json" FILE_CONTENTS)
-string(REPLACE ".\\\\XR_APILAYER_name.dll" "$<TARGET_FILE_NAME:XrApiLayer_quad_views_foveated>" FILE_CONTENTS "${FILE_CONTENTS}")
+string(REPLACE ".\\\\XR_APILAYER_name.dll" "../../../../../lib/$<TARGET_FILE_NAME:XrApiLayer_quad_views_foveated>" FILE_CONTENTS "${FILE_CONTENTS}")
 string(REPLACE "XR_APILAYER_name" "@LAYER_NAME@" FILE_CONTENTS "${FILE_CONTENTS}")
 # Expand variables
 file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${LAYER_NAME}.json.in" CONTENT "${FILE_CONTENTS}")
