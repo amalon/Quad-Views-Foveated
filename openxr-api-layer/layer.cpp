@@ -243,7 +243,7 @@ namespace openxr_api_layer {
                                       TLArg(m_fovTangentY, "FovTangentY"),
                                       TLArg(m_useTurboMode, "TurboMode"));
 
-                    m_trackerType = Tracker::None;
+                    m_trackerType = Tracker::NoTracker;
                     if (m_requestedQuadViews) {
                         if (!m_forceNoEyeTracking) {
                             if (m_debugSimulateTracking) {
@@ -258,7 +258,7 @@ namespace openxr_api_layer {
                         }
 
                         Log(fmt::format("Eye tracking is {}\n",
-                                        m_trackerType != Tracker::None ? "supported" : "not supported"));
+                                        m_trackerType != Tracker::NoTracker ? "supported" : "not supported"));
                     }
                 }
 
@@ -288,7 +288,7 @@ namespace openxr_api_layer {
                     while (foveatedProperties) {
                         if (foveatedProperties->type == XR_TYPE_SYSTEM_FOVEATED_RENDERING_PROPERTIES_VARJO) {
                             foveatedProperties->supportsFoveatedRendering =
-                                m_trackerType != Tracker::None ? XR_TRUE : XR_FALSE;
+                                m_trackerType != Tracker::NoTracker ? XR_TRUE : XR_FALSE;
 
                             TraceLoggingWrite(
                                 g_traceProvider,
@@ -412,7 +412,7 @@ namespace openxr_api_layer {
 
                         // Override default to specify whether foveated rendering is desired when the application does
                         // not specify.
-                        bool foveatedRenderingActive = m_trackerType != Tracker::None && m_preferFoveatedRendering;
+                        bool foveatedRenderingActive = m_trackerType != Tracker::NoTracker && m_preferFoveatedRendering;
 
                         // When foveated rendering extension is active, look whether the application is requesting it
                         // for the views. The spec is a little questionable and calls for each view to have the flag
@@ -676,7 +676,7 @@ namespace openxr_api_layer {
                     }
 
                     // Initialize the resources for the eye tracker.
-                    if (m_trackerType != Tracker::None) {
+                    if (m_trackerType != Tracker::NoTracker) {
                         switch (m_trackerType) {
                         case Tracker::EyeTrackerFB:
                             initializeEyeTrackingFB(*session);
@@ -940,7 +940,7 @@ namespace openxr_api_layer {
                                 // Override default to specify whether foveated rendering is desired when the
                                 // application does not specify.
                                 bool foveatedRenderingActive =
-                                    m_trackerType != Tracker::None && m_preferFoveatedRendering;
+                                    m_trackerType != Tracker::NoTracker && m_preferFoveatedRendering;
 
                                 if (m_requestedFoveatedRendering) {
                                     const XrViewLocateFoveatedRenderingVARJO* foveatedLocate =
@@ -1403,7 +1403,7 @@ namespace openxr_api_layer {
                     }
 
                     // Issue a warning if eye tracking was expected but does not seem functional.
-                    if (m_trackerType != Tracker::None && !m_loggedEyeTrackingWarning &&
+                    if (m_trackerType != Tracker::NoTracker && !m_loggedEyeTrackingWarning &&
                         (std::chrono::steady_clock::now() - m_lastGoodEyeTrackingData).count() > 60'000'000'000) {
                         Log("No data received from the eye tracker in 60 seconds! Image quality may be "
                             "degraded.\n");
@@ -3053,7 +3053,7 @@ namespace openxr_api_layer {
         }
 
         enum Tracker {
-            None = 0,
+            NoTracker = 0,
             SimulatedTracking,
             EyeTrackerFB,
             EyeGazeInteraction,
@@ -3071,7 +3071,7 @@ namespace openxr_api_layer {
         XrSystemId m_systemId{XR_NULL_SYSTEM_ID};
         std::string m_systemName;
         bool m_loggedResolution{false};
-        Tracker m_trackerType{Tracker::None};
+        Tracker m_trackerType{Tracker::NoTracker};
 
         float m_peripheralPixelDensity{0.5f};
         float m_focusPixelDensity{1.f};
