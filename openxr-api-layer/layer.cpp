@@ -3141,6 +3141,7 @@ namespace openxr_api_layer {
             SimulatedTracking,
             EyeTrackerFB,
             EyeGazeInteraction,
+            // FIXME XR_META_foveation_eye_tracked (Steam Frame standalone)
         };
 
         std::string m_applicationExecutableName;
