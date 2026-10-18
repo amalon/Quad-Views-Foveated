@@ -11,6 +11,9 @@
 #include <glm/mat4x4.hpp>
 #include <glm/gtc/quaternion.hpp>
 
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/matrix_decompose.hpp>
+
 namespace xr::math {
     constexpr float QuaternionEpsilon = 0.01f;
 
@@ -209,21 +212,27 @@ namespace xr::math {
         outVec->w = inVec[3];
     }
 
-#if _WIN32
-    inline void XM_CALLCONV StoreXrQuaternion(XrQuaternionf* outQuat, DirectX::FXMVECTOR inQuat) {
-        DirectX::XMStoreFloat4(&detail::implement_math_cast<DirectX::XMFLOAT4>(*outQuat), inQuat);
+    inline void StoreXrQuaternion(XrQuaternionf* outQuat, const glm::quat &inQuat) {
+        outQuat->x = inQuat[0];
+        outQuat->y = inQuat[1];
+        outQuat->z = inQuat[2];
+        outQuat->w = inQuat[3];
     }
 
+#if _WIN32
     inline void XM_CALLCONV StoreXrExtent(XrExtent2Df* outVec, DirectX::FXMVECTOR inVec) {
         DirectX::XMStoreFloat2(&detail::implement_math_cast<DirectX::XMFLOAT2>(*outVec), inVec);
     }
+#endif // _WIN32
 
-    inline bool XM_CALLCONV StoreXrPose(XrPosef* out, DirectX::FXMMATRIX matrix) {
-        DirectX::XMVECTOR position;
-        DirectX::XMVECTOR orientation;
-        DirectX::XMVECTOR scale;
+    inline bool StoreXrPose(XrPosef* out, const glm::mat4 &matrix) {
+        glm::vec3 scale;
+        glm::quat orientation;
+        glm::vec3 position;
+        glm::vec3 skew;
+        glm::vec4 perspective;
 
-        if (!DirectX::XMMatrixDecompose(&scale, &orientation, &position, matrix)) {
+        if (!glm::decompose(matrix, scale, orientation, position, skew, perspective)) {
             return false; // Non-SRT matrix encountered
         }
 
@@ -231,7 +240,6 @@ namespace xr::math {
         StoreXrVector3(&out->position, position);
         return true;
     }
-#endif // _WIN32
 
     namespace Pose {
         constexpr XrPosef Identity() {
