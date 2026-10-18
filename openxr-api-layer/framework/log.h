@@ -55,7 +55,6 @@ namespace openxr_api_layer::log {
 #define TraceLoggingWriteTagged(activity, ...) do {} while (false)
 #define TraceLoggingWriteStop(activity, ...) do {} while (false)
 #define TraceLoggingWrite(activity, ...) do {} while (false)
-#define OutputDebugStringA(...) do {} while (false)
 
 #define TLArg(var, ...) do {} while (0)
 #define TLPArg(var, ...) do {} while (0)

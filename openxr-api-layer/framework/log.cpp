@@ -50,7 +50,9 @@ namespace openxr_api_layer::log {
             size_t offset = std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S %z: ", std::localtime(&now));
             // FIXME
             vsnprintf(buf + offset, sizeof(buf) - offset, fmt, va);
+#ifdef _WIN32
             OutputDebugStringA(buf);
+#endif
             if (logStream.is_open()) {
                 logStream << buf;
                 logStream.flush();
