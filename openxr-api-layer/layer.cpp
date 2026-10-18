@@ -683,6 +683,16 @@ namespace openxr_api_layer {
                     // Initialize the minimal resources for the rendering code.
                     const XrBaseInStructure* entry = reinterpret_cast<const XrBaseInStructure*>(createInfo->next);
                     while (entry) {
+#ifdef XR_USE_GRAPHICS_API_OPENGL
+#ifdef XR_USE_PLATFORM_WIN32
+                        if (m_requestedOpenGL && entry->type == XR_TYPE_GRAPHICS_BINDING_OPENGL_WIN32_KHR) {
+                            const XrGraphicsBindingOpenGLWin32KHR* win32Bindings =
+                                reinterpret_cast<const XrGraphicsBindingOpenGLWin32KHR*>(entry);
+                            // FIXME
+                            m_isSupportedGraphicsApi = true;
+                            break;
+                        }
+#endif
 #ifdef XR_USE_PLATFORM_XLIB
                         if (m_requestedOpenGL && entry->type == XR_TYPE_GRAPHICS_BINDING_OPENGL_XLIB_KHR) {
                             const XrGraphicsBindingOpenGLXlibKHR* xlibBindings =
@@ -709,6 +719,7 @@ namespace openxr_api_layer {
                             m_isSupportedGraphicsApi = true;
                             break;
                         }
+#endif
 #endif
 #ifdef XR_USE_GRAPHICS_API_VULKAN
                         // Both XR_KHR_vulkan_enable and XR_KHR_vulkan_enable2

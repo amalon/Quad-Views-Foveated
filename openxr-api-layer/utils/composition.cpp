@@ -81,20 +81,6 @@ namespace {
     using namespace openxr_api_layer::log;
     using namespace openxr_api_layer::utils::graphics;
 
-#ifdef _WIN32
-    bool isSRGBFormat(GenericFormat format) {
-        return format == DXGI_FORMAT_R8G8B8A8_UNORM_SRGB || format == DXGI_FORMAT_B8G8R8A8_UNORM_SRGB ||
-               format == DXGI_FORMAT_B8G8R8X8_UNORM_SRGB || format == DXGI_FORMAT_BC1_UNORM_SRGB ||
-               format == DXGI_FORMAT_BC2_UNORM_SRGB || format == DXGI_FORMAT_BC3_UNORM_SRGB ||
-               format == DXGI_FORMAT_BC7_UNORM_SRGB;
-    }
-
-    bool isDepthFormat(GenericFormat format) {
-        return format == DXGI_FORMAT_D16_UNORM || format == DXGI_FORMAT_D24_UNORM_S8_UINT ||
-               format == DXGI_FORMAT_D32_FLOAT || format == DXGI_FORMAT_D32_FLOAT_S8X24_UINT;
-    }
-#endif
-
     struct SwapchainImage : ISwapchainImage {
         SwapchainImage(std::shared_ptr<IGraphicsTexture> textureOnApplicationDevice,
                        std::shared_ptr<IGraphicsTexture> textureOnCompositionDevice,
@@ -680,15 +666,43 @@ namespace {
             const XrBaseInStructure* entry = reinterpret_cast<const XrBaseInStructure*>(sessionInfo.next);
             while (entry && !m_applicationDevice) {
 #ifdef XR_USE_GRAPHICS_API_OPENGL
-#if 0
-                if (has_XR_KHR_opengl_enable && entry->type == XR_TYPE_GRAPHICS_BINDING_OPENGL_XLIB_KHR) {
+                if (has_XR_KHR_opengl_enable) {
+#ifdef XR_USE_PLATFORM_WIN32
+                    if (entry->type == XR_TYPE_GRAPHICS_BINDING_OPENGL_WIN32_KHR) {
+                        m_applicationDevice =
+                            internal::wrapApplicationDevice(*reinterpret_cast<const XrGraphicsBindingOpenGLWin32KHR*>(entry));
+                        break;
+                    }
+#endif
+#ifdef XR_USE_PLATFORM_XLIB
+                    if (entry->type == XR_TYPE_GRAPHICS_BINDING_OPENGL_XLIB_KHR) {
+                        m_applicationDevice =
+                            internal::wrapApplicationDevice(*reinterpret_cast<const XrGraphicsBindingOpenGLXlibKHR*>(entry));
+                        break;
+                    }
+#endif
+#ifdef XR_USE_PLATFORM_XCB
+                    if (entry->type == XR_TYPE_GRAPHICS_BINDING_OPENGL_XCB_KHR) {
+                        m_applicationDevice =
+                            internal::wrapApplicationDevice(*reinterpret_cast<const XrGraphicsBindingOpenGLXcbKHR*>(entry));
+                        break;
+                    }
+#endif
+#ifdef XR_USE_PLATFORM_EGL
+                    if (entry->type == XR_TYPE_GRAPHICS_BINDING_EGL_MNDX) {
+                        m_applicationDevice =
+                            internal::wrapApplicationDevice(*reinterpret_cast<const XrGraphicsBindingEGLMNDX*>(entry));
+                        break;
+                    }
+#endif
                     break;
                 }
-#endif
 #endif
 #ifdef XR_USE_GRAPHICS_API_VULKAN
                 // Both XR_KHR_vulkan_enable and XR_KHR_vulkan_enable2
                 if (has_XR_KHR_vulkan_enable && entry->type == XR_TYPE_GRAPHICS_BINDING_VULKAN_KHR) {
+                    m_applicationDevice =
+                        internal::wrapApplicationDevice(*reinterpret_cast<const XrGraphicsBindingVulkanKHR*>(entry));
                     break;
                 }
 #endif
@@ -755,9 +769,9 @@ namespace {
             CHECK_XRCMD(xrEnumerateSwapchainFormats(m_session, formatsCount, &formatsCount, formats.data()));
             for (const int64_t formatOnApplicationDevice : formats) {
                 const GenericFormat format = m_applicationDevice->translateToGenericFormat(formatOnApplicationDevice);
-                const bool isDepth = isDepthFormat(format);
+                const bool isDepth = m_applicationDevice->isDepthFormat(format);
                 const bool isColor = !isDepth;
-                const bool isSRGB = isColor && isSRGBFormat(format);
+                const bool isSRGB = isColor && m_applicationDevice->isSRGBFormat(format);
 
                 if (!m_preferredColorFormat && isColor && !isSRGB) {
                     m_preferredColorFormat = format;
@@ -887,7 +901,7 @@ namespace {
 
         int64_t getPreferredSwapchainFormatOnApplicationDevice(XrSwapchainUsageFlags usageFlags,
                                                                bool preferSRGB) const override {
-            GenericFormat format = DXGI_FORMAT_UNKNOWN;
+            GenericFormat format = 0;
             if (usageFlags & XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT) {
                 format = preferSRGB ? m_preferredSRGBColorFormat : m_preferredColorFormat;
             } else if (usageFlags & XR_SWAPCHAIN_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT) {
@@ -913,9 +927,7 @@ namespace {
         std::shared_ptr<IGraphicsFence> m_fenceOnCompositionDevice;
         uint64_t m_fenceValue{0};
 
-#ifdef XR_USE_GRAPHICS_API_D3D12
         std::optional<bool> m_overrideShareable;
-#endif
 
         PFN_xrCreateSwapchain xrCreateSwapchain{nullptr};
     };

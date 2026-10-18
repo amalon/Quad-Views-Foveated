@@ -184,6 +184,9 @@ namespace openxr_api_layer::utils::graphics {
         virtual GenericFormat translateToGenericFormat(int64_t format) const = 0;
         virtual int64_t translateFromGenericFormat(GenericFormat format) const = 0;
 
+        virtual bool isSRGBFormat(GenericFormat format) const = 0;
+        virtual bool isDepthFormat(GenericFormat format) const = 0;
+
 #ifdef _WIN32
         virtual LUID getAdapterLuid() const = 0;
 #endif
@@ -213,6 +216,23 @@ namespace openxr_api_layer::utils::graphics {
             return openTexturePtr(reinterpret_cast<void*>(nativeTexture), info);
         }
     };
+
+#ifdef _WIN32
+    struct D3DGraphicsDevice : IGraphicsDevice {
+        bool isSRGBFormat(GenericFormat format) const override {
+            return format == DXGI_FORMAT_R8G8B8A8_UNORM_SRGB || format == DXGI_FORMAT_B8G8R8A8_UNORM_SRGB ||
+                   format == DXGI_FORMAT_B8G8R8X8_UNORM_SRGB || format == DXGI_FORMAT_BC1_UNORM_SRGB ||
+                   format == DXGI_FORMAT_BC2_UNORM_SRGB || format == DXGI_FORMAT_BC3_UNORM_SRGB ||
+                   format == DXGI_FORMAT_BC7_UNORM_SRGB;
+        }
+
+        bool isDepthFormat(GenericFormat format) const override {
+            return format == DXGI_FORMAT_D16_UNORM || format == DXGI_FORMAT_D24_UNORM_S8_UINT ||
+                   format == DXGI_FORMAT_D32_FLOAT || format == DXGI_FORMAT_D32_FLOAT_S8X24_UINT;
+        }
+    };
+#endif
+
 
     // Modes of use of wrapped swapchains.
     enum class SwapchainMode {
@@ -326,6 +346,25 @@ namespace openxr_api_layer::utils::graphics {
                                       CompositionApi compositionApi);
 
     namespace internal {
+
+#ifdef XR_USE_GRAPHICS_API_OPENGL
+#ifdef XR_USE_PLATFORM_WIN32
+        std::shared_ptr<IGraphicsDevice> wrapApplicationDevice(const XrGraphicsBindingOpenGLWin32KHR& bindings);
+#endif
+#ifdef XR_USE_PLATFORM_XLIB
+        std::shared_ptr<IGraphicsDevice> wrapApplicationDevice(const XrGraphicsBindingOpenGLXlibKHR& bindings);
+#endif
+#ifdef XR_USE_PLATFORM_XCB
+        std::shared_ptr<IGraphicsDevice> wrapApplicationDevice(const XrGraphicsBindingOpenGLXcbKHR& bindings);
+#endif
+#ifdef XR_USE_PLATFORM_EGL
+        std::shared_ptr<IGraphicsDevice> wrapApplicationDevice(const XrGraphicsBindingEGLMNDX& bindings);
+#endif
+#endif
+
+#ifdef XR_USE_GRAPHICS_API_VULKAN
+        std::shared_ptr<IGraphicsDevice> wrapApplicationDevice(const XrGraphicsBindingVulkanKHR& bindings);
+#endif
 
 #ifdef XR_USE_GRAPHICS_API_D3D11
         std::shared_ptr<IGraphicsDevice> createD3D11CompositionDevice(LUID adapterLuid);

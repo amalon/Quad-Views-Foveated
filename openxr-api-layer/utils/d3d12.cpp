@@ -356,7 +356,7 @@ namespace {
         uint32_t completedFenceValue{0};
     };
 
-    struct D3D12GraphicsDevice : IGraphicsDevice {
+    struct D3D12GraphicsDevice : D3DGraphicsDevice {
         D3D12GraphicsDevice(ID3D12Device* device, ID3D12CommandQueue* commandQueue)
             : m_device(device), m_commandQueue(commandQueue) {
             TraceLocalActivity(local);

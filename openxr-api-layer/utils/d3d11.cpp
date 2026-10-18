@@ -324,7 +324,7 @@ namespace {
         bool m_useNtHandle{false};
     };
 
-    struct D3D11GraphicsDevice : IGraphicsDevice {
+    struct D3D11GraphicsDevice : D3DGraphicsDevice {
         D3D11GraphicsDevice(ID3D11Device* device) : m_device(device) {
             TraceLocalActivity(local);
             TraceLoggingWriteStart(local, "D3D11GraphicsDevice_Create", TLPArg(device, "D3D11Device"));
