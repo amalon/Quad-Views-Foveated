@@ -25,7 +25,8 @@
 #include "graphics.h"
 #include "log.h"
 
-#if defined(XR_USE_GRAPHICS_API_D3D11) || defined(XR_USE_GRAPHICS_API_D3D12)
+#if defined(XR_USE_GRAPHICS_API_OPENGL) || defined(XR_USE_GRAPHICS_API_VULKAN) \
+    || defined(XR_USE_GRAPHICS_API_D3D11) || defined(XR_USE_GRAPHICS_API_D3D12)
 
 namespace xr {
 
@@ -33,6 +34,14 @@ namespace xr {
 
     static inline std::string ToString(Api api) {
         switch (api) {
+#ifdef XR_USE_GRAPHICS_API_OPENGL
+        case Api::OpenGL:
+            return "OpenGL";
+#endif
+#ifdef XR_USE_GRAPHICS_API_VULKAN
+        case Api::OpenGL:
+            return "Vulkan";
+#endif
 #ifdef XR_USE_GRAPHICS_API_D3D11
         case Api::D3D11:
             return "D3D11";
@@ -48,6 +57,14 @@ namespace xr {
 
     static inline std::string ToString(CompositionApi api) {
         switch (api) {
+#ifdef XR_USE_GRAPHICS_API_OPENGL
+        case CompositionApi::OpenGL:
+            return "OpenGL";
+#endif
+#ifdef XR_USE_GRAPHICS_API_VULKAN
+        case CompositionApi::Vulkan:
+            return "Vulkan";
+#endif
 #ifdef XR_USE_GRAPHICS_API_D3D11
         case CompositionApi::D3D11:
             return "D3D11";
@@ -64,17 +81,19 @@ namespace {
     using namespace openxr_api_layer::log;
     using namespace openxr_api_layer::utils::graphics;
 
-    bool isSRGBFormat(DXGI_FORMAT format) {
+#ifdef _WIN32
+    bool isSRGBFormat(GenericFormat format) {
         return format == DXGI_FORMAT_R8G8B8A8_UNORM_SRGB || format == DXGI_FORMAT_B8G8R8A8_UNORM_SRGB ||
                format == DXGI_FORMAT_B8G8R8X8_UNORM_SRGB || format == DXGI_FORMAT_BC1_UNORM_SRGB ||
                format == DXGI_FORMAT_BC2_UNORM_SRGB || format == DXGI_FORMAT_BC3_UNORM_SRGB ||
                format == DXGI_FORMAT_BC7_UNORM_SRGB;
     }
 
-    bool isDepthFormat(DXGI_FORMAT format) {
+    bool isDepthFormat(GenericFormat format) {
         return format == DXGI_FORMAT_D16_UNORM || format == DXGI_FORMAT_D24_UNORM_S8_UINT ||
                format == DXGI_FORMAT_D32_FLOAT || format == DXGI_FORMAT_D32_FLOAT_S8X24_UINT;
     }
+#endif
 
     struct SwapchainImage : ISwapchainImage {
         SwapchainImage(std::shared_ptr<IGraphicsTexture> textureOnApplicationDevice,
@@ -148,6 +167,30 @@ namespace {
             CHECK_XRCMD(xrEnumerateSwapchainImages(m_swapchain, 0, &imagesCount, nullptr));
             std::vector<std::shared_ptr<IGraphicsTexture>> textures;
             switch (m_applicationDevice->getApi()) {
+#ifdef XR_USE_GRAPHICS_API_OPENGL
+            case Api::OpenGL: {
+                std::vector<XrSwapchainImageOpenGLKHR> images(imagesCount, {XR_TYPE_SWAPCHAIN_IMAGE_OPENGL_KHR});
+                CHECK_XRCMD(xrEnumerateSwapchainImages(m_swapchain,
+                                                       imagesCount,
+                                                       &imagesCount,
+                                                       reinterpret_cast<XrSwapchainImageBaseHeader*>(images.data())));
+                for (const XrSwapchainImageOpenGLKHR& image : images) {
+                    textures.push_back(m_applicationDevice->openTexture<OpenGL>(image.image, infoOnApplicationDevice));
+                }
+            } break;
+#endif
+#ifdef XR_USE_GRAPHICS_API_VULKAN
+            case Api::Vulkan: {
+                std::vector<XrSwapchainImageVulkanKHR> images(imagesCount, {XR_TYPE_SWAPCHAIN_IMAGE_VULKAN_KHR});
+                CHECK_XRCMD(xrEnumerateSwapchainImages(m_swapchain,
+                                                       imagesCount,
+                                                       &imagesCount,
+                                                       reinterpret_cast<XrSwapchainImageBaseHeader*>(images.data())));
+                for (const XrSwapchainImageVulkanKHR& image : images) {
+                    textures.push_back(m_applicationDevice->openTexture<Vulkan>(image.image, infoOnApplicationDevice));
+                }
+            } break;
+#endif
 #ifdef XR_USE_GRAPHICS_API_D3D11
             case Api::D3D11: {
                 std::vector<XrSwapchainImageD3D11KHR> images(imagesCount, {XR_TYPE_SWAPCHAIN_IMAGE_D3D11_KHR});
@@ -594,6 +637,12 @@ namespace {
                 m_instance, "xrCreateSwapchain", reinterpret_cast<PFN_xrVoidFunction*>(&xrCreateSwapchain)));
 
             // Detect which graphics bindings to look for.
+#ifdef XR_USE_GRAPHICS_API_OPENGL
+            bool has_XR_KHR_opengl_enable = false;
+#endif
+#ifdef XR_USE_GRAPHICS_API_VULKAN
+            bool has_XR_KHR_vulkan_enable = false;
+#endif
 #ifdef XR_USE_GRAPHICS_API_D3D11
             bool has_XR_KHR_D3D11_enable = false;
 #endif
@@ -603,6 +652,18 @@ namespace {
             for (uint32_t i = 0; i < instanceInfo.enabledExtensionCount; i++) {
                 const std::string_view extensionName(instanceInfo.enabledExtensionNames[i]);
 
+#ifdef XR_USE_GRAPHICS_API_OPENGL
+                if (extensionName == XR_KHR_OPENGL_ENABLE_EXTENSION_NAME) {
+                    has_XR_KHR_opengl_enable = true;
+                }
+#endif
+#ifdef XR_USE_GRAPHICS_API_VULKAN
+                if (extensionName == XR_KHR_VULKAN_ENABLE_EXTENSION_NAME ||
+                    extensionName == XR_KHR_VULKAN_ENABLE2_EXTENSION_NAME)
+                {
+                    has_XR_KHR_vulkan_enable = true;
+                }
+#endif
 #ifdef XR_USE_GRAPHICS_API_D3D11
                 if (extensionName == XR_KHR_D3D11_ENABLE_EXTENSION_NAME) {
                     has_XR_KHR_D3D11_enable = true;
@@ -618,6 +679,19 @@ namespace {
             // Wrap the application device.
             const XrBaseInStructure* entry = reinterpret_cast<const XrBaseInStructure*>(sessionInfo.next);
             while (entry && !m_applicationDevice) {
+#ifdef XR_USE_GRAPHICS_API_OPENGL
+#if 0
+                if (has_XR_KHR_opengl_enable && entry->type == XR_TYPE_GRAPHICS_BINDING_OPENGL_XLIB_KHR) {
+                    break;
+                }
+#endif
+#endif
+#ifdef XR_USE_GRAPHICS_API_VULKAN
+                // Both XR_KHR_vulkan_enable and XR_KHR_vulkan_enable2
+                if (has_XR_KHR_vulkan_enable && entry->type == XR_TYPE_GRAPHICS_BINDING_VULKAN_KHR) {
+                    break;
+                }
+#endif
 #ifdef XR_USE_GRAPHICS_API_D3D11
                 if (has_XR_KHR_D3D11_enable && entry->type == XR_TYPE_GRAPHICS_BINDING_D3D11_KHR) {
                     m_applicationDevice =
@@ -680,18 +754,18 @@ namespace {
             std::vector<int64_t> formats(formatsCount);
             CHECK_XRCMD(xrEnumerateSwapchainFormats(m_session, formatsCount, &formatsCount, formats.data()));
             for (const int64_t formatOnApplicationDevice : formats) {
-                const DXGI_FORMAT format = m_applicationDevice->translateToGenericFormat(formatOnApplicationDevice);
+                const GenericFormat format = m_applicationDevice->translateToGenericFormat(formatOnApplicationDevice);
                 const bool isDepth = isDepthFormat(format);
                 const bool isColor = !isDepth;
                 const bool isSRGB = isColor && isSRGBFormat(format);
 
-                if (m_preferredColorFormat == DXGI_FORMAT_UNKNOWN && isColor && !isSRGB) {
+                if (!m_preferredColorFormat && isColor && !isSRGB) {
                     m_preferredColorFormat = format;
                 }
-                if (m_preferredSRGBColorFormat == DXGI_FORMAT_UNKNOWN && isColor && isSRGB) {
+                if (!m_preferredSRGBColorFormat && isColor && isSRGB) {
                     m_preferredSRGBColorFormat = format;
                 }
-                if (m_preferredDepthFormat == DXGI_FORMAT_UNKNOWN && isDepth) {
+                if (!m_preferredDepthFormat && isDepth) {
                     m_preferredDepthFormat = format;
                 }
             }
@@ -813,7 +887,7 @@ namespace {
 
         int64_t getPreferredSwapchainFormatOnApplicationDevice(XrSwapchainUsageFlags usageFlags,
                                                                bool preferSRGB) const override {
-            DXGI_FORMAT format = DXGI_FORMAT_UNKNOWN;
+            GenericFormat format = DXGI_FORMAT_UNKNOWN;
             if (usageFlags & XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT) {
                 format = preferSRGB ? m_preferredSRGBColorFormat : m_preferredColorFormat;
             } else if (usageFlags & XR_SWAPCHAIN_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT) {
@@ -830,9 +904,9 @@ namespace {
 
         std::shared_ptr<IGraphicsDevice> m_compositionDevice;
         std::shared_ptr<IGraphicsDevice> m_applicationDevice;
-        DXGI_FORMAT m_preferredColorFormat{DXGI_FORMAT_UNKNOWN};
-        DXGI_FORMAT m_preferredSRGBColorFormat{DXGI_FORMAT_UNKNOWN};
-        DXGI_FORMAT m_preferredDepthFormat{DXGI_FORMAT_UNKNOWN};
+        GenericFormat m_preferredColorFormat{0};
+        GenericFormat m_preferredSRGBColorFormat{0};
+        GenericFormat m_preferredDepthFormat{0};
 
         std::mutex m_fenceMutex;
         std::shared_ptr<IGraphicsFence> m_fenceOnApplicationDevice;

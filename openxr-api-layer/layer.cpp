@@ -57,6 +57,7 @@ namespace openxr_api_layer {
     const std::vector<std::string> implicitExtensions = {XR_EXT_EYE_GAZE_INTERACTION_EXTENSION_NAME,
                                                          XR_FB_EYE_TRACKING_SOCIAL_EXTENSION_NAME};
 
+#ifdef _WIN32
     struct ProjectionVSConstants {
         alignas(16) DirectX::XMFLOAT4X4 focusProjection;
     };
@@ -72,6 +73,7 @@ namespace openxr_api_layer {
         alignas(4) uint32_t Const0[4];
         alignas(4) uint32_t Const1[4];
     };
+#endif
 
     // This class implements our API layer.
     class OpenXrLayer : public openxr_api_layer::OpenXrApi {
@@ -114,6 +116,7 @@ namespace openxr_api_layer {
                               TLArg(createInfo->applicationInfo.engineVersion, "EngineVersion"),
                               TLArg(createInfo->createFlags, "CreateFlags"));
             {
+#ifdef _WIN32
                 char path[_MAX_PATH];
                 GetModuleFileNameA(nullptr, path, sizeof(path));
                 std::string_view fullPath(path);
@@ -123,6 +126,10 @@ namespace openxr_api_layer {
                 } else {
                     m_applicationExecutableName = fullPath;
                 }
+#else
+                // FIXME
+                m_applicationExecutableName = "UNKNOWN_EXECUTABLE";
+#endif
             }
             Log(fmt::format(
                 "Application: {} ({})\n", createInfo->applicationInfo.applicationName, GetApplicationExecutableName()));
@@ -141,8 +148,19 @@ namespace openxr_api_layer {
                     m_requestedFoveatedRendering = true;
                 } else if (ext == XR_KHR_COMPOSITION_LAYER_DEPTH_EXTENSION_NAME) {
                     m_requestedDepthSubmission = true;
+#ifdef XR_USE_GRAPHICS_API_OPENGL
+                } else if (ext == XR_KHR_OPENGL_ENABLE_EXTENSION_NAME) {
+                    m_requestedOpenGL = true;
+#endif
+#ifdef XR_USE_GRAPHICS_API_VULKAN
+                } else if (ext == XR_KHR_VULKAN_ENABLE_EXTENSION_NAME ||
+                           ext == XR_KHR_VULKAN_ENABLE2_EXTENSION_NAME) {
+                    m_requestedVulkan = true;
+#endif
+#ifdef _WIN32
                 } else if (ext == XR_KHR_D3D11_ENABLE_EXTENSION_NAME) {
                     m_requestedD3D11 = true;
+#endif
                 }
             }
 
@@ -150,8 +168,8 @@ namespace openxr_api_layer {
                 m_requestedFoveatedRendering = false;
             }
 
-            // We only support D3D11 at the moment.
-            m_bypassApiLayer = !m_requestedD3D11;
+            // We only support OpenGL and D3D11 at the moment.
+            m_bypassApiLayer = !m_requestedOpenGL && !m_requestedD3D11;
             if (m_bypassApiLayer) {
                 Log(fmt::format("{} layer will be bypassed\n", LayerName));
                 return XR_SUCCESS;
@@ -665,6 +683,44 @@ namespace openxr_api_layer {
                     // Initialize the minimal resources for the rendering code.
                     const XrBaseInStructure* entry = reinterpret_cast<const XrBaseInStructure*>(createInfo->next);
                     while (entry) {
+#ifdef XR_USE_PLATFORM_XLIB
+                        if (m_requestedOpenGL && entry->type == XR_TYPE_GRAPHICS_BINDING_OPENGL_XLIB_KHR) {
+                            const XrGraphicsBindingOpenGLXlibKHR* xlibBindings =
+                                reinterpret_cast<const XrGraphicsBindingOpenGLXlibKHR*>(entry);
+                            // FIXME
+                            m_isSupportedGraphicsApi = true;
+                            break;
+                        }
+#endif
+#ifdef XR_USE_PLATFORM_XCB
+                        if (m_requestedOpenGL && entry->type == XR_TYPE_GRAPHICS_BINDING_OPENGL_XCB_KHR) {
+                            const XrGraphicsBindingOpenGLXcbKHR* xcbBindings =
+                                reinterpret_cast<const XrGraphicsBindingOpenGLXcbKHR*>(entry);
+                            // FIXME
+                            m_isSupportedGraphicsApi = true;
+                            break;
+                        }
+#endif
+#ifdef XR_USE_PLATFORM_EGL
+                        if (m_requestedOpenGL && entry->type == XR_TYPE_GRAPHICS_BINDING_EGL_MNDX) {
+                            const XrGraphicsBindingEGLMNDX* eglBindings =
+                                reinterpret_cast<const XrGraphicsBindingEGLMNDX*>(entry);
+                            // FIXME
+                            m_isSupportedGraphicsApi = true;
+                            break;
+                        }
+#endif
+#ifdef XR_USE_GRAPHICS_API_VULKAN
+                        // Both XR_KHR_vulkan_enable and XR_KHR_vulkan_enable2
+                        if (m_requestedVulkan && entry->type == XR_TYPE_GRAPHICS_BINDING_VULKAN_KHR) {
+                            const XrGraphicsBindingVulkanKHR* vulkanBindings =
+                                reinterpret_cast<const XrGraphicsBindingVulkanKHR*>(entry);
+                            // FIXME
+                            m_isSupportedGraphicsApi = true;
+                            break;
+                        }
+#endif
+#ifdef _WIN32
                         if (m_requestedD3D11 && entry->type == XR_TYPE_GRAPHICS_BINDING_D3D11_KHR) {
                             const XrGraphicsBindingD3D11KHR* d3dBindings =
                                 reinterpret_cast<const XrGraphicsBindingD3D11KHR*>(entry);
@@ -672,6 +728,15 @@ namespace openxr_api_layer {
                             m_isSupportedGraphicsApi = true;
                             break;
                         }
+                        if (m_requestedOpenGL && entry->type == XR_TYPE_GRAPHICS_BINDING_OPENGL_WIN32_KHR) {
+                            const XrGraphicsBindingOpenGLWin32KHR* xlibBindings =
+                                reinterpret_cast<const XrGraphicsBindingOpenGLWin32KHR*>(entry);
+                            // FIXME
+                            //initializeDeviceContext(d3dBindings->device);
+                            m_isSupportedGraphicsApi = true;
+                            break;
+                        }
+#endif
                         entry = entry->next;
                     }
 
@@ -729,6 +794,7 @@ namespace openxr_api_layer {
                     }
                     m_appFrameCpuTimer.reset();
                     m_appRenderCpuTimer.reset();
+#ifdef _WIN32
                     m_layerContextState.Reset();
                     m_linearClampSampler.Reset();
                     m_noDepthRasterizer.Reset();
@@ -743,6 +809,7 @@ namespace openxr_api_layer {
 
                     m_applicationDevice.Reset();
                     m_renderContext.Reset();
+#endif
 
                     m_gazeSpaces.clear();
                     m_swapchains.clear();
@@ -1474,6 +1541,7 @@ namespace openxr_api_layer {
             XrResult result = XR_ERROR_RUNTIME_FAILURE;
             if (isSessionHandled(session)) {
                 if (m_useQuadViews || m_useFovTangent) {
+#ifdef _WIN32
                     // Save the application context state.
                     ComPtr<ID3DDeviceContextState> applicationContextState;
                     {
@@ -1492,6 +1560,7 @@ namespace openxr_api_layer {
                         m_renderContext->SwapDeviceContextState(applicationContextState.Get(), nullptr);
                         TraceLoggingWriteStop(local, "xrEndFrame_SwapDeviceContextState");
                     });
+#endif // _WIN32
 
                     std::set<XrSwapchain> swapchainsToRelease;
 
@@ -2034,11 +2103,13 @@ namespace openxr_api_layer {
 
             XrSwapchainCreateInfo createInfo{};
             XrSwapchain fullFovSwapchain[xr::StereoView::Count]{XR_NULL_HANDLE, XR_NULL_HANDLE};
+#ifdef _WIN32
             ComPtr<ID3D11Texture2D> flatImage[xr::QuadView::Count];
             ComPtr<ID3D11Texture2D> sharpenedImage[xr::StereoView::Count];
 
             std::vector<ID3D11Texture2D*> images;
             std::vector<ID3D11Texture2D*> fullFovSwapchainImages[xr::StereoView::Count];
+#endif
         };
 
         void initializeEyeTrackingFB(XrSession session) {
@@ -2080,6 +2151,7 @@ namespace openxr_api_layer {
         bool getSimulatedTracking(XrTime time, bool getStateOnly, XrVector3f& unitVector) {
             // Use the mouse to simulate eye tracking.
             if (!getStateOnly) {
+#ifdef _WIN32
                 RECT rect;
                 rect.left = 1;
                 rect.right = 999;
@@ -2093,6 +2165,7 @@ namespace openxr_api_layer {
 
                 XrVector2f point = {(float)cursor.x / 1000.f, (float)cursor.y / 1000.f};
                 unitVector = Normalize({point.x - 0.5f, 0.5f - point.y, -0.35f});
+#endif // _WIN32
             }
 
             return true;
@@ -2123,13 +2196,11 @@ namespace openxr_api_layer {
 
             if (!getStateOnly) {
                 // Average the poses from both eyes.
-                const auto gaze = LoadXrPose(Pose::Slerp(
+                glm::mat4 gaze = LoadXrPose(Pose::Slerp(
                     eyeGaze.gaze[xr::StereoView::Left].gazePose, eyeGaze.gaze[xr::StereoView::Right].gazePose, 0.5f));
-                const auto gazeProjectedPoint =
-                    DirectX::XMVector3Transform(DirectX::XMVectorSet(0.f, 0.f, 1.f, 1.f), gaze);
+                glm::vec3 gazeProjectedPoint = gaze * glm::vec4(0.f, 0.f, 1.f, 1.f);
 
-                unitVector = Normalize(
-                    {gazeProjectedPoint.m128_f32[0], gazeProjectedPoint.m128_f32[1], gazeProjectedPoint.m128_f32[2]});
+                StoreXrVector3(&unitVector, glm::normalize(gazeProjectedPoint));
             }
 
             return true;
@@ -2159,11 +2230,9 @@ namespace openxr_api_layer {
 
             if (!getStateOnly) {
                 const auto gaze = LoadXrPose(location.pose);
-                const auto gazeProjectedPoint =
-                    DirectX::XMVector3Transform(DirectX::XMVectorSet(0.f, 0.f, 1.f, 1.f), gaze);
+                const auto gazeProjectedPoint = gaze * glm::vec4(0.f, 0.f, 1.f, 1.f);
 
-                unitVector = Normalize(
-                    {gazeProjectedPoint.m128_f32[0], gazeProjectedPoint.m128_f32[1], gazeProjectedPoint.m128_f32[2]});
+                StoreXrVector3(&unitVector, glm::normalize(gazeProjectedPoint));
             }
 
             return true;
@@ -2221,6 +2290,7 @@ namespace openxr_api_layer {
                                   const XrCompositionLayerProjectionView& focusView,
                                   Swapchain& swapchainForFocusView,
                                   XrCompositionLayerFlags layerFlags) {
+#ifdef _WIN32
             // TODO: Support D3D12.
 
             // Lazy initialization of the composition resources.
@@ -2556,8 +2626,10 @@ namespace openxr_api_layer {
                     OpenXrApi::xrReleaseSwapchainImage(swapchainForStereoView.fullFovSwapchain[viewIndex], nullptr));
                 TraceLoggingWriteStop(local, "xrEndFrame_CommitOutput");
             }
+#endif // _WIN32
         }
 
+#ifdef _WIN32
         void initializeDeviceContext(ID3D11Device* device) {
             UINT creationFlags = 0;
             if (device->GetCreationFlags() & D3D11_CREATE_DEVICE_SINGLETHREADED) {
@@ -2690,6 +2762,7 @@ namespace openxr_api_layer {
                 }
             }
         }
+#endif
 
         void populateFovTables(XrSystemId systemId, XrSession session) {
             if (!m_needComputeBaseFov) {
@@ -2805,17 +2878,28 @@ namespace openxr_api_layer {
             if (m_debugKeys) {
                 bool log = false;
 
+#ifdef _WIN32
+#define DEBUG_CONTROL_PRESSED() (GetAsyncKeyState(VK_CONTROL) < 0)
+#define DEBUG_SHIFT_PRESSED() (GetAsyncKeyState(VK_SHIFT) < 0)
+#define DEBUG_KEY_PRESSED() (GetAsyncKeyState(key) < 0)
+#else
+// FIXME port to X11
+#define DEBUG_CONTROL_PRESSED() false
+#define DEBUG_SHIFT_PRESSED() false
+#define DEBUG_KEY_PRESSED(KEY) false
+#endif
 #define DEBUG_ACTION(label, key, action)                                                                               \
     static bool wasCtrl##label##Pressed = false;                                                                       \
-    const bool isCtrl##label##Pressed = GetAsyncKeyState(VK_CONTROL) < 0 && GetAsyncKeyState(key) < 0;                 \
+    const bool isCtrl##label##Pressed = DEBUG_CONTROL_PRESSED() && DEBUG_KEY_PRESSED(key);                             \
     if (!wasCtrl##label##Pressed && isCtrl##label##Pressed) {                                                          \
         log = true;                                                                                                    \
         action;                                                                                                        \
     }                                                                                                                  \
     wasCtrl##label##Pressed = isCtrl##label##Pressed;
 
+
                 DEBUG_ACTION(SharpenLess, 'J', {
-                    if (!GetAsyncKeyState(VK_SHIFT)) {
+                    if (!DEBUG_SHIFT_PRESSED()) {
                         m_sharpenFocusView = std::clamp(m_sharpenFocusView + 0.1f, 0.f, 1.f);
                     } else {
                         m_horizontalFocusWideningMultiplier =
@@ -2823,7 +2907,7 @@ namespace openxr_api_layer {
                     }
                 });
                 DEBUG_ACTION(SharpenMore, 'U', {
-                    if (!GetAsyncKeyState(VK_SHIFT)) {
+                    if (!DEBUG_SHIFT_PRESSED()) {
                         m_sharpenFocusView = std::clamp(m_sharpenFocusView - 0.1f, 0.f, 1.f);
                     } else {
                         m_horizontalFocusWideningMultiplier =
@@ -2840,7 +2924,7 @@ namespace openxr_api_layer {
                     }
                 });
                 DEBUG_ACTION(SmoothenThicknessLess, 'I', {
-                    if (!GetAsyncKeyState(VK_SHIFT)) {
+                    if (!DEBUG_SHIFT_PRESSED()) {
                         m_smoothenFocusViewEdges = std::clamp(m_smoothenFocusViewEdges + 0.01f, 0.f, 1.f);
                     } else {
                         m_verticalFocusWideningMultiplier =
@@ -2848,7 +2932,7 @@ namespace openxr_api_layer {
                     }
                 });
                 DEBUG_ACTION(SmoothenThicknessMore, 'K', {
-                    if (!GetAsyncKeyState(VK_SHIFT)) {
+                    if (!DEBUG_SHIFT_PRESSED()) {
                         m_smoothenFocusViewEdges = std::clamp(m_smoothenFocusViewEdges - 0.01f, 0.f, 1.f);
                     } else {
                         m_verticalFocusWideningMultiplier =
@@ -2865,14 +2949,14 @@ namespace openxr_api_layer {
                     }
                 });
                 DEBUG_ACTION(VerticalFocusOffsetUp, 'O', {
-                    if (!GetAsyncKeyState(VK_SHIFT)) {
+                    if (!DEBUG_SHIFT_PRESSED()) {
                         m_verticalFocusOffset = std::clamp(m_verticalFocusOffset + 0.01f, -1.f, 1.f);
                     } else {
                         m_horizontalFocusOffset = std::clamp(m_horizontalFocusOffset + 0.01f, -1.f, 1.f);
                     }
                 });
                 DEBUG_ACTION(VerticalFocusOffsetDown, 'L', {
-                    if (!GetAsyncKeyState(VK_SHIFT)) {
+                    if (!DEBUG_SHIFT_PRESSED()) {
                         m_verticalFocusOffset = std::clamp(m_verticalFocusOffset - 0.01f, -1.f, 1.f);
                     } else {
                         m_horizontalFocusOffset = std::clamp(m_horizontalFocusOffset - 0.01f, -1.f, 1.f);
@@ -3065,6 +3149,8 @@ namespace openxr_api_layer {
         bool m_useQuadViews{false};
         bool m_requestedFoveatedRendering{false};
         bool m_requestedDepthSubmission{false};
+        bool m_requestedOpenGL{false};
+        bool m_requestedVulkan{false};
         bool m_requestedD3D11{false};
         bool m_useFovTangent{false};
         std::string m_runtimeName;
@@ -3121,6 +3207,7 @@ namespace openxr_api_layer {
         bool m_needSyncActions{true};
         uint64_t m_framesElapsed{0};
 
+#ifdef _WIN32
         ComPtr<ID3D11Device5> m_applicationDevice;
         ComPtr<ID3D11DeviceContext4> m_renderContext;
         ComPtr<ID3DDeviceContextState> m_layerContextState;
@@ -3134,6 +3221,7 @@ namespace openxr_api_layer {
         ComPtr<ID3D11ComputeShader> m_sharpeningCS;
         ComPtr<ID3D11Texture2D> m_blankTexture;
         ComPtr<ID3D11ShaderResourceView> m_srvBlankTexture;
+#endif
 
         // Turbo mode.
         std::chrono::time_point<std::chrono::steady_clock> m_lastFrameWaitTimestamp{};
@@ -3189,6 +3277,7 @@ namespace openxr_api_layer {
 
 } // namespace openxr_api_layer
 
+#ifdef _WIN32
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved) {
     switch (ul_reason_for_call) {
     case DLL_PROCESS_ATTACH:
@@ -3205,3 +3294,4 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
     }
     return TRUE;
 }
+#endif

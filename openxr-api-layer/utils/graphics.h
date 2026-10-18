@@ -27,6 +27,12 @@
 namespace openxr_api_layer::utils::graphics {
 
     enum class Api {
+#ifdef XR_USE_GRAPHICS_API_OPENGL
+        OpenGL,
+#endif
+#ifdef XR_USE_GRAPHICS_API_VULKAN
+        Vulkan,
+#endif
 #ifdef XR_USE_GRAPHICS_API_D3D11
         D3D11,
 #endif
@@ -35,6 +41,12 @@ namespace openxr_api_layer::utils::graphics {
 #endif
     };
     enum class CompositionApi {
+#ifdef XR_USE_GRAPHICS_API_OPENGL
+        OpenGL,
+#endif
+#ifdef XR_USE_GRAPHICS_API_VULKAN
+        Vulkan,
+#endif
 #ifdef XR_USE_GRAPHICS_API_D3D11
         D3D11,
 #endif
@@ -42,9 +54,31 @@ namespace openxr_api_layer::utils::graphics {
 
     // Type traits for all graphics APIs.
 
+#ifdef XR_USE_GRAPHICS_API_OPENGL
+    struct OpenGL {
+        static constexpr Api api = Api::OpenGL;
+
+        //using Device = ID3D11Device*;
+        //using Context = ID3D11DeviceContext*;
+        using Texture = uint32_t;
+        //using Fence = ID3D11Fence*;
+    };
+#endif
+
+#ifdef XR_USE_GRAPHICS_API_VULKAN
+    struct OpenGL {
+        static constexpr Api api = Api::Vulkan;
+
+        //using Device = ID3D11Device*;
+        //using Context = ID3D11DeviceContext*;
+        using Texture = VKImage;
+        //using Fence = ID3D11Fence*;
+    };
+#endif
+
 #ifdef XR_USE_GRAPHICS_API_D3D11
     struct D3D11 {
-        static constexpr Api Api = Api::D3D11;
+        static constexpr Api api = Api::D3D11;
 
         using Device = ID3D11Device*;
         using Context = ID3D11DeviceContext*;
@@ -55,7 +89,7 @@ namespace openxr_api_layer::utils::graphics {
 
 #ifdef XR_USE_GRAPHICS_API_D3D12
     struct D3D12 {
-        static constexpr Api Api = Api::D3D12;
+        static constexpr Api api = Api::D3D12;
 
         using Device = ID3D12Device*;
         using Context = ID3D12CommandQueue*;
@@ -64,13 +98,16 @@ namespace openxr_api_layer::utils::graphics {
     };
 #endif
 
-    // We (arbitrarily) use DXGI as a common conversion point for all graphics APIs.
-    using GenericFormat = DXGI_FORMAT;
+    // We use int64_t as a common conversion point for all graphics APIs to
+    // match OpenXR.
+    using GenericFormat = int64_t;
 
     struct ShareableHandle {
+#ifdef _WIN32
         wil::unique_handle ntHandle;
         HANDLE handle{nullptr};
         bool isNtHandle{};
+#endif
         Api origin{};
     };
 
@@ -97,7 +134,7 @@ namespace openxr_api_layer::utils::graphics {
 
         template <typename ApiTraits>
         typename ApiTraits::Fence getNativeFence() const {
-            if (ApiTraits::Api != getApi()) {
+            if (ApiTraits::api != getApi()) {
                 throw std::runtime_error("Api mismatch");
             }
             return reinterpret_cast<typename ApiTraits::Fence>(getNativeFencePtr());
@@ -117,7 +154,7 @@ namespace openxr_api_layer::utils::graphics {
 
         template <typename ApiTraits>
         typename ApiTraits::Texture getNativeTexture() const {
-            if (ApiTraits::Api != getApi()) {
+            if (ApiTraits::api != getApi()) {
                 throw std::runtime_error("Api mismatch");
             }
             return reinterpret_cast<typename ApiTraits::Texture>(getNativeTexturePtr());
@@ -147,11 +184,13 @@ namespace openxr_api_layer::utils::graphics {
         virtual GenericFormat translateToGenericFormat(int64_t format) const = 0;
         virtual int64_t translateFromGenericFormat(GenericFormat format) const = 0;
 
+#ifdef _WIN32
         virtual LUID getAdapterLuid() const = 0;
+#endif
 
         template <typename ApiTraits>
         typename ApiTraits::Device getNativeDevice() const {
-            if (ApiTraits::Api != getApi()) {
+            if (ApiTraits::api != getApi()) {
                 throw std::runtime_error("Api mismatch");
             }
             return reinterpret_cast<typename ApiTraits::Device>(getNativeDevicePtr());
@@ -159,7 +198,7 @@ namespace openxr_api_layer::utils::graphics {
 
         template <typename ApiTraits>
         typename ApiTraits::Context getNativeContext() const {
-            if (ApiTraits::Api != getApi()) {
+            if (ApiTraits::api != getApi()) {
                 throw std::runtime_error("Api mismatch");
             }
             return reinterpret_cast<typename ApiTraits::Context>(getNativeContextPtr());
@@ -168,7 +207,7 @@ namespace openxr_api_layer::utils::graphics {
         template <typename ApiTraits>
         std::shared_ptr<IGraphicsTexture> openTexture(typename ApiTraits::Texture nativeTexture,
                                                       const XrSwapchainCreateInfo& info) {
-            if (ApiTraits::Api != getApi()) {
+            if (ApiTraits::api != getApi()) {
                 throw std::runtime_error("Api mismatch");
             }
             return openTexturePtr(reinterpret_cast<void*>(nativeTexture), info);
@@ -189,7 +228,10 @@ namespace openxr_api_layer::utils::graphics {
         // A writable swapchain might require a copy from the composition device after composition.
         Write = (1 << 2),
     };
-    DEFINE_ENUM_FLAG_OPERATORS(SwapchainMode);
+    SwapchainMode operator &(SwapchainMode a, SwapchainMode b)
+    {
+        return (SwapchainMode)((unsigned int)a & (unsigned int)b);
+    }
 
     struct ISwapchainImage;
 
@@ -260,7 +302,7 @@ namespace openxr_api_layer::utils::graphics {
                                                                        bool preferSRGB = true) const = 0;
 
         template <typename SessionData>
-        typename SessionData* getSessionData() const {
+        SessionData* getSessionData() const {
             return reinterpret_cast<SessionData*>(getSessionDataPtr());
         }
     };

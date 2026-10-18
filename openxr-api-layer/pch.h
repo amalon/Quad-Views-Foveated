@@ -46,6 +46,36 @@
 
 using namespace std::chrono_literals;
 
+#ifdef USE_OPENGL
+#define XR_USE_GRAPHICS_API_OPENGL
+#endif
+
+#ifdef USE_VULKAN
+//#define XR_USE_GRAPHICS_API_VULKAN
+#endif
+
+#ifdef USE_GLX
+#define XR_USE_PLATFORM_XLIB
+//#include <X11/X.h>
+//#include <X11/Xlib.h>
+//#include <X11/Xutil.h>
+//#define GLX_GLXEXT_PROTOTYPES 1
+#include <GL/glx.h>
+#endif
+
+#ifdef USE_XCB
+#define XR_USE_PLATFORM_XCB
+#include <xcb/glx.h>
+#endif
+
+#ifdef USE_EGL
+#define XR_USE_PLATFORM_EGL
+// 22     #include <X11/X.h>
+// 23     #include <X11/Xlib.h>
+// 24     #include <X11/Xutil.h>
+#include <EGL/egl.h>
+#endif
+
 #ifdef _WIN32
 
 // Uncomment below the graphics frameworks used by the layer.
@@ -88,23 +118,28 @@ using Microsoft::WRL::ComPtr;
 
 // Portable headers
 #include <XrError.h>
+#include <XrStereoView.h>
 
 #ifdef _WIN32
 
 // OpenXR/DirectX utilities.
 #include <XrMath.h>
 #include <XrSide.h>
-#include <XrStereoView.h>
 #include <XrToString.h>
 #include <ScopeGuard.h>
 #include <DirectXCollision.h>
+
+#else
+
+#include <utils/math.h>
 
 #endif // _WIN32
 
 // FMT formatter.
 #include <fmt/format.h>
 
-#if defined(XR_USE_GRAPHICS_API_D3D11) || defined(XR_USE_GRAPHICS_API_D3D12)
+#if defined(XR_USE_GRAPHICS_API_OPENGL) || defined(XR_USE_GRAPHICS_API_VULKAN) \
+    || defined(XR_USE_GRAPHICS_API_D3D11) || defined(XR_USE_GRAPHICS_API_D3D12)
 // Utilities framework.
 #include <utils/graphics.h>
 #endif
