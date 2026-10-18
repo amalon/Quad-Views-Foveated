@@ -27,3 +27,8 @@ add_subdirectory(openxr-api-layer)
 install(TARGETS                   XrApiLayer_quad_views_foveated
         LIBRARY DESTINATION       "${CMAKE_INSTALL_LIBDIR}"
 )
+
+# Install settings file
+install(FILES       "${CMAKE_CURRENT_LIST_DIR}/settings.cfg"
+        DESTINATION "${CMAKE_INSTALL_SYSCONFDIR}/openxr/XrApiLayer_quad_views_foveated/"
+)
