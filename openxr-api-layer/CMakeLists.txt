@@ -40,7 +40,7 @@ file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${LAYER_NAME}.json" INPUT "${C
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_LIST_DIR}/openxr-api-layer.json")
 
 install(FILES       "${CMAKE_CURRENT_BINARY_DIR}/${LAYER_NAME}.json"
-        DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/openxr/1/api_layers/explicit.d"
+        DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/openxr/1/api_layers/implicit.d"
 )
 
 # Shaders
