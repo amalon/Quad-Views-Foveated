@@ -1,5 +1,5 @@
 # Top level CMakeLists.txt
-cmake_minimum_required(VERSION 3.11)
+cmake_minimum_required(VERSION 3.18)
 
 # Extract version numbers from version.info
 file(READ "version.info" version)

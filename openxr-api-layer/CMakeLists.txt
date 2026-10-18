@@ -1,5 +1,6 @@
 # Dependencies
 find_package(OpenGL REQUIRED)
+find_package(glm REQUIRED)
 #find_package(OpenXR 1.0.34 REQUIRED)
 
 #   sed -i "s/FILEVERSION .*$/FILEVERSION %major%,%minor%,%patch%,0/g" $(ProjectDir)\resource.rc
@@ -150,21 +151,34 @@ set(XrApiLayer_quad_views_foveated_SRCS
     utils/input.cpp
 )
 
-# Win32
+# OpenGL graphics bindings
+find_package(OpenGL COMPONENTS EGL GLX OpenGL)
+if(OpenGL_OpenGL_FOUND)
+    add_compile_definitions(USE_OPENGL)
+endif()
+if(OpenGL_GLX_FOUND)
+    add_compile_definitions(USE_GLX)
+endif()
+if(OpenGL_EGL_FOUND)
+    add_compile_definitions(USE_EGL)
+endif()
+find_package(X11 COMPONENTS xcb)
+if (X11_xcb_FOUND)
+    add_compile_definitions(USE_XCB)
+endif()
+
+# Vulkan graphics bindings
+find_package(Vulkan)
+if(Vulkan_Found)
+    add_compile_definitions(USE_VULKAN)
+endif()
+
+# Direct3D graphics bindings
 if(WIN32)
     list(APPEND XrApiLayer_quad_views_foveated_SRCS
         utils/d3d11.cpp
         utils/d3d12.cpp
     )
-endif()
-
-# X11 graphics binding
-find_package(X11)
-if(X11_FOUND)
-    #list(APPEND XrApiLayer_quad_views_foveated_SRCS
-    #    OpenXR/GraphicsBindingX11.cpp
-    #)
-    #add_compile_definitions(OSGXR_USE_X11)
 endif()
 
 # Build XrApiLayer_quad_views_foveated as a library
@@ -194,6 +208,7 @@ target_include_directories(XrApiLayer_quad_views_foveated
 target_link_libraries(XrApiLayer_quad_views_foveated
     PRIVATE
         ${OPENGL_LIBRARIES}
+        glm::glm
 )
 
 set_target_properties(XrApiLayer_quad_views_foveated
