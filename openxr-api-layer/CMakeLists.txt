@@ -26,29 +26,22 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/version.h.in"
                "${XrApiLayer_quad_views_foveated_VERSION_HEADER}")
 
 
-add_compile_definitions(LAYER_NAME="XR_APILAYER_MBUCCHIA_quad_views_foveated")
-# Post build:
-#  REM Sign the DLL.
-#  if not defined PFX_PASSWORD goto skip_signing
-#  if not defined PFX_NAME set PFX_NAME=selfsigncert
-#  $(SolutionDir)\installer\signtool.exe sign /d "OpenXR Quad Views Foveated" /du "https://mbucchia.github.io/Quad-Views-Foveated/" /f $(SolutionDir)\installer\%PFX_NAME%.pfx /p "%PFX_PASSWORD%" /v $(TargetPath)
-#  :skip_signing
-#
-#  REM Copy dependencies.
-#  sed "s/XR_APILAYER_name/$(SolutionName)/g" $(ProjectDir)\openxr-api-layer.json &gt; $(OutDir)\openxr-api-layer.json
-#copy $(SolutionDir)\settings.cfg $(OutDir)
+set(LAYER_NAME "XR_APILAYER_MBUCCHIA_quad_views_foveated")
+add_compile_definitions(LAYER_NAME="${LAYER_NAME}")
 
-#    framework\dispatch.gen.h
-#    framework\dispatch.h
-#    framework\log.h
-#    framework\util.h
-#    layer.h
-#    pch.h
-#    resource.h
-#    views.h
-#    utils\general.h
-#    utils\graphics.h
-#    utils\inputs.h
+# Generate API layer json file
+file(READ "${CMAKE_CURRENT_LIST_DIR}/openxr-api-layer.json" FILE_CONTENTS)
+string(REPLACE ".\\\\XR_APILAYER_name.dll" "$<TARGET_FILE_NAME:XrApiLayer_quad_views_foveated>" FILE_CONTENTS "${FILE_CONTENTS}")
+string(REPLACE "XR_APILAYER_name" "@LAYER_NAME@" FILE_CONTENTS "${FILE_CONTENTS}")
+# Expand variables
+file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${LAYER_NAME}.json.in" CONTENT "${FILE_CONTENTS}")
+# Expand generator expressions 
+file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${LAYER_NAME}.json" INPUT "${CMAKE_CURRENT_BINARY_DIR}/${LAYER_NAME}.json.in")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_LIST_DIR}/openxr-api-layer.json")
+
+install(FILES       "${CMAKE_CURRENT_BINARY_DIR}/${LAYER_NAME}.json"
+        DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/openxr/1/api_layers/explicit.d"
+)
 
 # Shaders
 #    <FxCompile Include="ProjectionPS.hlsl">
