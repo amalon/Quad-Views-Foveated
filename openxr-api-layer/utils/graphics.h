@@ -248,7 +248,7 @@ namespace openxr_api_layer::utils::graphics {
         // A writable swapchain might require a copy from the composition device after composition.
         Write = (1 << 2),
     };
-    SwapchainMode operator &(SwapchainMode a, SwapchainMode b)
+    inline SwapchainMode operator &(SwapchainMode a, SwapchainMode b)
     {
         return (SwapchainMode)((unsigned int)a & (unsigned int)b);
     }

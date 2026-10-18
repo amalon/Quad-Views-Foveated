@@ -43,7 +43,7 @@ namespace openxr_api_layer::utils::inputs {
         // Use the motion controller haptics.
         MotionControllerHaptics = (1 << 2),
     };
-    InputMethod operator &(InputMethod a, InputMethod b)
+    inline InputMethod operator &(InputMethod a, InputMethod b)
     {
         return (InputMethod)((unsigned int)a & (unsigned int)b);
     }
