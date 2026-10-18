@@ -119,12 +119,12 @@ using Microsoft::WRL::ComPtr;
 // Portable headers
 #include <XrError.h>
 #include <XrStereoView.h>
+#include <XrSide.h>
 
 #ifdef _WIN32
 
 // OpenXR/DirectX utilities.
 #include <XrMath.h>
-#include <XrSide.h>
 #include <XrToString.h>
 #include <ScopeGuard.h>
 #include <DirectXCollision.h>
