@@ -25,7 +25,7 @@
 #ifdef XR_USE_GRAPHICS_API_D3D11
 
 #include "log.h"
-#include "graphics.h"
+#include "d3d.h"
 
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "d3d11.lib")
