@@ -139,6 +139,14 @@ namespace openxr_api_layer {
                     g_traceProvider, "xrCreateInstance", TLArg(createInfo->enabledApiLayerNames[i], "ApiLayerName"));
             }
 
+            // OpenXR 1.1 has XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO_WITH_FOVEATED_INSET
+            if (createInfo->applicationInfo.apiVersion >= XR_VERSION_1_1) {
+                m_requestedQuadViews = true;
+            } else {
+                // OpenXR 1.1 may be probed for before falling back to 1.0
+                m_requestedQuadViews = false;
+            }
+
             for (uint32_t i = 0; i < createInfo->enabledExtensionCount; i++) {
                 const std::string_view ext(createInfo->enabledExtensionNames[i]);
                 TraceLoggingWrite(g_traceProvider, "xrCreateInstance", TLArg(ext.data(), "ExtensionName"));
