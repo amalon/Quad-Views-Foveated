@@ -66,7 +66,7 @@ namespace openxr_api_layer::utils::graphics {
 #endif
 
 #ifdef XR_USE_GRAPHICS_API_VULKAN
-    struct OpenGL {
+    struct Vulkan {
         static constexpr Api api = Api::Vulkan;
 
         //using Device = ID3D11Device*;
