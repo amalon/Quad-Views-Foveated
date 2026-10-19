@@ -402,10 +402,14 @@ namespace xr::math {
         return a / std::sqrt(Dot(a, a));
     }
 
-    // 2 * n / (r - l)    0                  0                    0
-    // 0                  2 * n / (t - b)    0                    0
-    // (r + l) / (r - l)  (t + b) / (t - b)  f / (n - f)         -1
-    // 0                  0                  n*f / (n - f)        0
+    // =============================================================================
+    // Derived from openxr-simple-example
+    // Copyright 2019-2021, Collabora, Ltd.
+    // Which was adapted from
+    // https://github.com/KhronosGroup/OpenXR-SDK-Source/blob/master/src/common/xr_linear.h
+    // Copyright (c) 2017 The Khronos Group Inc.
+    // Copyright (c) 2016 Oculus VR, LLC.
+    // =============================================================================
     inline glm::mat4 ComposeProjectionMatrix(const XrFovf& fov, const NearFar& nearFar) {
         const float tanAngleLeft = tanf(fov.angleLeft);
         const float tanAngleRight = tanf(fov.angleRight);
@@ -430,44 +434,44 @@ namespace xr::math {
         {
             // place the far plane at infinity
             result[0][0] = 2 / tanAngleWidth;
-            result[1][0] = 0;
-            result[2][0] = (tanAngleRight + tanAngleLeft) / tanAngleWidth;
-            result[3][0] = 0;
-
             result[0][1] = 0;
-            result[1][1] = 2 / tanAngleHeight;
-            result[2][1] = (tanAngleUp + tanAngleDown) / tanAngleHeight;
-            result[3][1] = 0;
-
-            result[0][2] = 0;
-            result[1][2] = 0;
-            result[2][2] = -1;
-            result[3][2] = -(nearFar.Near + offsetZ);
-
+            result[0][2] = (tanAngleRight + tanAngleLeft) / tanAngleWidth;
             result[0][3] = 0;
+
+            result[1][0] = 0;
+            result[1][1] = 2 / tanAngleHeight;
+            result[1][2] = (tanAngleUp + tanAngleDown) / tanAngleHeight;
             result[1][3] = 0;
-            result[2][3] = -1;
+
+            result[2][0] = 0;
+            result[2][1] = 0;
+            result[2][2] = -1;
+            result[2][3] = -(nearFar.Near + offsetZ);
+
+            result[3][0] = 0;
+            result[3][1] = 0;
+            result[3][2] = -1;
             result[3][3] = 0;
         } else {
             // normal projection
             result[0][0] = 2 / tanAngleWidth;
-            result[1][0] = 0;
-            result[2][0] = (tanAngleRight + tanAngleLeft) / tanAngleWidth;
-            result[3][0] = 0;
-
             result[0][1] = 0;
-            result[1][1] = 2 / tanAngleHeight;
-            result[2][1] = (tanAngleUp + tanAngleDown) / tanAngleHeight;
-            result[3][1] = 0;
-
-            result[0][2] = 0;
-            result[1][2] = 0;
-            result[2][2] = -(nearFar.Far + offsetZ) / (nearFar.Far - nearFar.Near);
-            result[3][2] = -(nearFar.Far * (nearFar.Near + offsetZ)) / (nearFar.Far - nearFar.Near);
-
+            result[0][2] = (tanAngleRight + tanAngleLeft) / tanAngleWidth;
             result[0][3] = 0;
+
+            result[1][0] = 0;
+            result[1][1] = 2 / tanAngleHeight;
+            result[1][2] = (tanAngleUp + tanAngleDown) / tanAngleHeight;
             result[1][3] = 0;
-            result[2][3] = -1;
+
+            result[2][0] = 0;
+            result[2][1] = 0;
+            result[2][2] = -(nearFar.Far + offsetZ) / (nearFar.Far - nearFar.Near);
+            result[2][3] = -(nearFar.Far * (nearFar.Near + offsetZ)) / (nearFar.Far - nearFar.Near);
+
+            result[3][0] = 0;
+            result[3][1] = 0;
+            result[3][2] = -1;
             result[3][3] = 0;
         }
 
@@ -484,11 +488,11 @@ namespace xr::math {
 
     inline void ValidateProjectionMatrix(const glm::mat4& p) {
         // Reference equations on top of ComposeProjectionMatrix() above.
-        if (p[0][1] != 0 || p[0][2] != 0 || p[0][3] != 0 ||
-            // p[1][0] is not 0 on old MR devices, but small enough to be ignored. For future MR devices, it should be 0 (no shear)
-            p[1][2] != 0 || p[1][3] != 0 ||
+        if (p[1][0] != 0 || p[2][0] != 0 || p[3][0] != 0 ||
+            // p[0][1] is not 0 on old MR devices, but small enough to be ignored. For future MR devices, it should be 0 (no shear)
+            p[2][1] != 0 || p[3][1] != 0 ||
             // When near or far plane is infinite, p[2][2] is 0 or -1, respectively. They are valid cases.
-            p[2][3] != -1 || p[3][0] != 0 || p[3][1] != 0 || p[3][3] != 0) {
+            p[3][2] != -1 || p[0][3] != 0 || p[1][3] != 0 || p[3][3] != 0) {
             throw std::runtime_error("Invalid projection matrix");
         }
     }
