@@ -140,6 +140,8 @@ set(XrApiLayer_quad_views_foveated_SRCS
     layer.cpp
     pch.cpp
     utils/composition.cpp
+    utils/d3d11.cpp
+    utils/d3d12.cpp
     utils/general.cpp
     utils/input.cpp
 )
@@ -164,14 +166,6 @@ endif()
 find_package(Vulkan)
 if(Vulkan_Found)
     add_compile_definitions(USE_VULKAN)
-endif()
-
-# Direct3D graphics bindings
-if(WIN32)
-    list(APPEND XrApiLayer_quad_views_foveated_SRCS
-        utils/d3d11.cpp
-        utils/d3d12.cpp
-    )
 endif()
 
 # Build XrApiLayer_quad_views_foveated as a library
