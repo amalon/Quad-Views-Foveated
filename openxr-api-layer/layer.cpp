@@ -160,6 +160,10 @@ namespace openxr_api_layer {
                 } else if (ext == XR_KHR_OPENGL_ENABLE_EXTENSION_NAME) {
                     m_requestedOpenGL = true;
 #endif
+#ifdef XR_USE_PLATFORM_EGL
+                } else if (ext == XR_MNDX_EGL_ENABLE_EXTENSION_NAME) {
+                    m_requestedEGL = true;
+#endif
 #ifdef XR_USE_GRAPHICS_API_VULKAN
                 } else if (ext == XR_KHR_VULKAN_ENABLE_EXTENSION_NAME ||
                            ext == XR_KHR_VULKAN_ENABLE2_EXTENSION_NAME) {
@@ -720,7 +724,7 @@ namespace openxr_api_layer {
                         }
 #endif
 #ifdef XR_USE_PLATFORM_EGL
-                        if (m_requestedOpenGL && entry->type == XR_TYPE_GRAPHICS_BINDING_EGL_MNDX) {
+                        if (m_requestedEGL && entry->type == XR_TYPE_GRAPHICS_BINDING_EGL_MNDX) {
                             const XrGraphicsBindingEGLMNDX* eglBindings =
                                 reinterpret_cast<const XrGraphicsBindingEGLMNDX*>(entry);
                             // FIXME
@@ -3170,6 +3174,7 @@ namespace openxr_api_layer {
         bool m_requestedFoveatedRendering{false};
         bool m_requestedDepthSubmission{false};
         bool m_requestedOpenGL{false};
+        bool m_requestedEGL{false};
         bool m_requestedVulkan{false};
         bool m_requestedD3D11{false};
         bool m_useFovTangent{false};

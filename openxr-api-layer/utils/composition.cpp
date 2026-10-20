@@ -626,6 +626,9 @@ namespace {
 #ifdef XR_USE_GRAPHICS_API_OPENGL
             bool has_XR_KHR_opengl_enable = false;
 #endif
+#ifdef XR_USE_PLATFORM_EGL
+            bool has_XR_MNDX_egl_enable= false;
+#endif
 #ifdef XR_USE_GRAPHICS_API_VULKAN
             bool has_XR_KHR_vulkan_enable = false;
 #endif
@@ -641,6 +644,11 @@ namespace {
 #ifdef XR_USE_GRAPHICS_API_OPENGL
                 if (extensionName == XR_KHR_OPENGL_ENABLE_EXTENSION_NAME) {
                     has_XR_KHR_opengl_enable = true;
+                }
+#endif
+#ifdef XR_USE_PLATFORM_EGL
+                if (extensionName == XR_MNDX_EGL_ENABLE_EXTENSION_NAME) {
+                    has_XR_MNDX_egl_enable = true;
                 }
 #endif
 #ifdef XR_USE_GRAPHICS_API_VULKAN
@@ -688,14 +696,18 @@ namespace {
                         break;
                     }
 #endif
+                    break;
+                }
+#endif
 #ifdef XR_USE_PLATFORM_EGL
+                // This extension doesn't technically depend on
+                // XR_KHR_opengl_enable
+                if (has_XR_MNDX_egl_enable) {
                     if (entry->type == XR_TYPE_GRAPHICS_BINDING_EGL_MNDX) {
                         m_applicationDevice =
                             internal::wrapApplicationDevice(*reinterpret_cast<const XrGraphicsBindingEGLMNDX*>(entry));
                         break;
                     }
-#endif
-                    break;
                 }
 #endif
 #ifdef XR_USE_GRAPHICS_API_VULKAN
