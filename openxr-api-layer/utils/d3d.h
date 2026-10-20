@@ -28,6 +28,25 @@ namespace openxr_api_layer::utils::graphics {
 
 #ifdef _WIN32
     struct D3DGraphicsDevice : IGraphicsDevice {
+        virtual void* getNativeDevicePtr() const = 0;
+        virtual void* getNativeContextPtr() const = 0;
+
+        template <typename ApiTraits>
+        typename ApiTraits::Device getNativeDevice() const {
+            if (ApiTraits::api != getApi()) {
+                throw std::runtime_error("Api mismatch");
+            }
+            return reinterpret_cast<typename ApiTraits::Device>(getNativeDevicePtr());
+        }
+
+        template <typename ApiTraits>
+        typename ApiTraits::Context getNativeContext() const {
+            if (ApiTraits::api != getApi()) {
+                throw std::runtime_error("Api mismatch");
+            }
+            return reinterpret_cast<typename ApiTraits::Context>(getNativeContextPtr());
+        }
+
         bool isSRGBFormat(GenericFormat format) const override {
             return format == DXGI_FORMAT_R8G8B8A8_UNORM_SRGB || format == DXGI_FORMAT_B8G8R8A8_UNORM_SRGB ||
                    format == DXGI_FORMAT_B8G8R8X8_UNORM_SRGB || format == DXGI_FORMAT_BC1_UNORM_SRGB ||

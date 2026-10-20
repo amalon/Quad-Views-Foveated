@@ -166,8 +166,6 @@ namespace openxr_api_layer::utils::graphics {
         virtual ~IGraphicsDevice() = default;
 
         virtual Api getApi() const = 0;
-        virtual void* getNativeDevicePtr() const = 0;
-        virtual void* getNativeContextPtr() const = 0;
 
         virtual std::shared_ptr<IGraphicsTimer> createTimer() = 0;
         virtual std::shared_ptr<IGraphicsFence> createFence(bool shareable = true) = 0;
@@ -186,22 +184,6 @@ namespace openxr_api_layer::utils::graphics {
 
         virtual bool isSRGBFormat(GenericFormat format) const = 0;
         virtual bool isDepthFormat(GenericFormat format) const = 0;
-
-        template <typename ApiTraits>
-        typename ApiTraits::Device getNativeDevice() const {
-            if (ApiTraits::api != getApi()) {
-                throw std::runtime_error("Api mismatch");
-            }
-            return reinterpret_cast<typename ApiTraits::Device>(getNativeDevicePtr());
-        }
-
-        template <typename ApiTraits>
-        typename ApiTraits::Context getNativeContext() const {
-            if (ApiTraits::api != getApi()) {
-                throw std::runtime_error("Api mismatch");
-            }
-            return reinterpret_cast<typename ApiTraits::Context>(getNativeContextPtr());
-        }
 
         template <typename ApiTraits>
         std::shared_ptr<IGraphicsTexture> openTexture(typename ApiTraits::Texture nativeTexture,
