@@ -751,14 +751,6 @@ namespace openxr_api_layer {
                             m_isSupportedGraphicsApi = true;
                             break;
                         }
-                        if (m_requestedOpenGL && entry->type == XR_TYPE_GRAPHICS_BINDING_OPENGL_WIN32_KHR) {
-                            const XrGraphicsBindingOpenGLWin32KHR* xlibBindings =
-                                reinterpret_cast<const XrGraphicsBindingOpenGLWin32KHR*>(entry);
-                            // FIXME
-                            //initializeDeviceContext(d3dBindings->device);
-                            m_isSupportedGraphicsApi = true;
-                            break;
-                        }
 #endif
                         entry = entry->next;
                     }
