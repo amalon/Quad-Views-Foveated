@@ -144,6 +144,7 @@ set(XrApiLayer_quad_views_foveated_SRCS
     utils/d3d12.cpp
     utils/general.cpp
     utils/input.cpp
+    utils/opengl.cpp
 )
 
 # OpenGL graphics bindings
