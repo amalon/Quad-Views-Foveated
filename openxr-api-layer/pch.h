@@ -51,7 +51,7 @@ using namespace std::chrono_literals;
 #endif
 
 #ifdef USE_VULKAN
-//#define XR_USE_GRAPHICS_API_VULKAN
+#define XR_USE_GRAPHICS_API_VULKAN
 #endif
 
 #ifdef USE_GLX
@@ -64,8 +64,9 @@ using namespace std::chrono_literals;
 #endif
 
 #ifdef USE_XCB
-#define XR_USE_PLATFORM_XCB
-#include <xcb/glx.h>
+// Unsupported for now
+//#define XR_USE_PLATFORM_XCB
+//#include <xcb/glx.h>
 #endif
 
 #ifdef USE_EGL
