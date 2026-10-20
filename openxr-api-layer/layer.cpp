@@ -2038,7 +2038,7 @@ namespace openxr_api_layer {
                     // We will implement quad views on top of stereo. If the stereo mask changes, then it means the
                     // quad views mask for the peripheral views changes.
                     // TODO: We should in fact duplicate the event.
-                    if (m_requestedQuadViews &&
+                    if (m_useQuadViews &&
                         event->viewConfigurationType == XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO) {
                         event->viewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_QUAD_VARJO;
                     }
