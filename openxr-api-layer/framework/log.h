@@ -57,10 +57,10 @@ namespace openxr_api_layer::log {
 #define TraceLoggingWriteStart(activity, ...) do {} while (false)
 #define TraceLoggingWriteTagged(activity, ...) do {} while (false)
 #define TraceLoggingWriteStop(activity, ...) do {} while (false)
-#define TraceLoggingWrite(activity, str, ...) do { (printf("[TRACE] " str "\n") __VA_OPT__(,) __VA_ARGS__); } while (false)
+#define TraceLoggingWrite(activity, str, ...) do { (std::cout << ("[TRACE] " str) << std::endl __VA_OPT__(,) __VA_ARGS__); } while (false)
 
-#define TLArg(var, name) printf("         %s: %lu\n", name, (long)var)
-#define TLPArg(var, name) printf("         %s: %p\n", name, (void *)var)
+#define TLArg(var, name) std::cout << "         " << (name) << ": " << (var) << std::endl
+#define TLPArg TLArg
 #ifdef _M_IX86
 #define TLXArg TLArg
 #else
