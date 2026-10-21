@@ -1571,6 +1571,10 @@ namespace openxr_api_layer {
                     });
 #endif // _WIN32
 
+                    // Make context current, and restore application context
+                    // upon leaving this scope.
+                    graphics::ContextScoped contextScope(m_graphicsDevice->getContext());
+
                     std::set<XrSwapchain> swapchainsToRelease;
 
                     for (uint32_t i = 0; i < frameEndInfo->layerCount; i++) {

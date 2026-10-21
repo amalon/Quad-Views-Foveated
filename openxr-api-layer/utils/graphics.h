@@ -230,6 +230,22 @@ namespace openxr_api_layer::utils::graphics {
         virtual void restoreContext(const ContextVariant* store) const = 0;
     };
 
+    // Scoped context, restored on destruction
+    struct ContextScoped {
+        ContextScoped(IContext* context) : m_context(context) {
+            if (m_context)
+                m_context->makeCurrent(&m_ctx);
+        }
+
+        ~ContextScoped() {
+            if (m_context)
+                m_context->restoreContext(&m_ctx);
+        }
+
+        ContextVariant m_ctx;
+        IContext* m_context;
+    };
+
     // We use int64_t as a common conversion point for all graphics APIs to
     // match OpenXR.
     using GenericFormat = int64_t;

@@ -34,20 +34,6 @@ namespace {
 
     constexpr bool PreferNtHandle = false;
 
-    // Scoped context, restored on destruction
-    struct OpenGLContextScoped {
-        OpenGLContextScoped(IContext* context) : m_context(context) {
-            m_context->makeCurrent(&m_ctx);
-        }
-
-        ~OpenGLContextScoped() {
-            m_context->restoreContext(&m_ctx);
-        }
-
-        ContextVariant m_ctx;
-        IContext* m_context;
-    };
-
     // Platform traits provide a way to access the appropriate member of the
     // union in ContextVariant, based on the OpenXR binding struct.
     template <typename GraphicsBinding>
