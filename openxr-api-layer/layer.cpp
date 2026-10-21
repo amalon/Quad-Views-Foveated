@@ -2154,7 +2154,7 @@ namespace openxr_api_layer {
                 TraceLoggingWriteStop(local, "xrEndFrame_GatherInputOutput_PopulateImagesCache");
             };
 
-            virtual ApiTraits::Texture getImage(const XrSwapchainImage& image) const = 0;
+            virtual typename ApiTraits::Texture getImage(const XrSwapchainImage& image) const = 0;
 
             void populateImagesCache(OpenXrApi* xrApi, XrSwapchain swapchain) override {
                 populateImagesCache(xrApi, images, swapchain);
@@ -2165,8 +2165,8 @@ namespace openxr_api_layer {
                                     fullFovSwapchain[viewIndex]);
             }
 
-            ApiTraits::PtrTexture flatImage[xr::QuadView::Count];
-            ApiTraits::PtrTexture sharpenedImage[xr::StereoView::Count];
+            typename ApiTraits::PtrTexture flatImage[xr::QuadView::Count];
+            typename ApiTraits::PtrTexture sharpenedImage[xr::StereoView::Count];
 
             std::vector<typename ApiTraits::Texture> images;
             std::vector<typename ApiTraits::Texture> fullFovSwapchainImages[xr::StereoView::Count];

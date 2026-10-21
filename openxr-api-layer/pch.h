@@ -41,6 +41,8 @@
 #include <set>
 #include <chrono>
 #include <future>
+#include <unordered_map>
+#include <vector>
 #define _USE_MATH_DEFINES
 #include <cmath>
 
