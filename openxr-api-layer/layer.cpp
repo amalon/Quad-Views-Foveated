@@ -2099,8 +2099,8 @@ namespace openxr_api_layer {
 
       private:
         struct Swapchain {
-            virtual void populateImagesCache(OpenXrApi* xrApi, XrSwapchain swapchain);
-            virtual void populateFullFovImagesCache(OpenXrApi* xrApi, uint32_t viewIndex);
+            virtual void populateImagesCache(OpenXrApi* xrApi, XrSwapchain swapchain) = 0;
+            virtual void populateFullFovImagesCache(OpenXrApi* xrApi, uint32_t viewIndex) = 0;
 
             std::deque<uint32_t> acquiredIndex;
             uint32_t lastReleasedIndex{0};
