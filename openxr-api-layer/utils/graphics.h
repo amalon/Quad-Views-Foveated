@@ -61,6 +61,7 @@ namespace openxr_api_layer::utils::graphics {
         //using Device = ID3D11Device*;
         //using Context = ID3D11DeviceContext*;
         using Texture = uint32_t;
+        using PtrTexture = Texture;
         //using Fence = ID3D11Fence*;
     };
 #endif
@@ -71,7 +72,8 @@ namespace openxr_api_layer::utils::graphics {
 
         //using Device = ID3D11Device*;
         //using Context = ID3D11DeviceContext*;
-        using Texture = VKImage;
+        using Texture = VkImage;
+        using PtrTexture = Texture;
         //using Fence = ID3D11Fence*;
     };
 #endif
@@ -83,6 +85,7 @@ namespace openxr_api_layer::utils::graphics {
         using Device = ID3D11Device*;
         using Context = ID3D11DeviceContext*;
         using Texture = ID3D11Texture2D*;
+        using PtrTexture = ComPtr<*Texture>;
         using Fence = ID3D11Fence*;
     };
 #endif
@@ -97,6 +100,135 @@ namespace openxr_api_layer::utils::graphics {
         using Fence = ID3D12Fence*;
     };
 #endif
+
+    // Union of each platform's context, which can be safely stored on the stack
+    struct ContextVariant {
+        union {
+#ifdef XR_USE_GRAPHICS_API_OPENGL
+#ifdef XR_USE_PLATFORM_WIN32
+            struct {
+                void clear() {
+                    m_hDC = NULL;
+                    m_hGLRC = NULL;
+                }
+
+                void fromBinding(const XrGraphicsBindingOpenGLWin32KHR* binding) {
+                    m_hDC = binding->hDC;
+                    m_hGLRC = binding->hGLRC;
+                }
+
+                void fromCurrent() {
+                    m_hDC = wglGetCurrentDC();
+                    m_hGLRC = wglGetCurrentContext();
+                }
+
+                void makeCurrent() const {
+                    return wglMakeCurrent(m_hDC, m_hGLRC);
+                }
+
+                HDC m_hDC;
+                hGLRC m_hGLRC;
+            } win32;
+#endif
+#ifdef XR_USE_PLATFORM_XLIB
+            struct {
+                void clear() {
+                    m_display = nullptr;
+                    m_drawable = None;
+                    m_ctx = nullptr;
+                }
+
+                void fromBinding(const XrGraphicsBindingOpenGLXlibKHR* binding) {
+                    m_display = binding->xDisplay;
+                    m_drawable = binding->glxDrawable;
+                    m_ctx = binding->glxContext;
+                }
+
+                void fromCurrent() {
+                    m_display = glXGetCurrentDisplay();
+                    m_drawable = glXGetCurrentDrawable();
+                    m_ctx = glXGetCurrentContext();
+                }
+
+                bool makeCurrent() const {
+                    return glXMakeCurrent(m_display, m_drawable, m_ctx);
+                }
+
+                Display* m_display;
+                GLXDrawable m_drawable;
+                GLXContext m_ctx;
+            } xlib;
+#endif
+#ifdef XR_USE_PLATFORM_XCB
+#error incomplete
+            struct {
+                void clear() {
+                }
+
+                void fromBinding(const XrGraphicsBindingOpenGLXcbKHR* binding) {
+                    m_conn = binding->connection;
+                    m_drawable = binding->glxDrawable;
+                    m_context = binding->glxContext;
+                    // m_oldContextTag
+                }
+
+                void fromCurrent() {
+
+                }
+
+                bool makeCurrent() const {
+                    xcb_glx_make_current(m_conn, m_drawable, m_context,
+                                         m_oldContextTag);
+                }
+
+                xcb_connection_t* m_conn;
+                xcb_glx_drawable_t m_drawable;
+                xcb_glx_context_t m_context;
+                //xcb_glx_context_tag_t m_oldContextTag;
+            } xcb;
+#endif
+#ifdef XR_USE_PLATFORM_EGL
+            struct {
+                void clear() {
+                    // FIXME m_display?
+                    m_draw = EGL_NO_SURFACE;
+                    m_read = EGL_NO_SURFACE;
+                    m_context = EGL_NO_CONTEXT;
+                }
+
+                void fromBinding(const XrGraphicsBindingEGLMNDX* binding) {
+                    m_display = binding->display;
+                    m_draw = EGL_NO_SURFACE;
+                    m_read = EGL_NO_SURFACE;
+                    m_context = binding->context;
+                }
+
+                void fromCurrent() {
+                    m_display = eglGetCurrentDisplay();
+                    m_draw = eglGetCurrentSurface(EGL_DRAW);
+                    m_read = eglGetCurrentSurface(EGL_READ);
+                    m_context = eglGetCurrentContext();
+                }
+
+                bool makeCurrent() const {
+                    return eglMakeCurrent(m_display, m_draw, m_read, m_context);
+                }
+
+                EGLDisplay m_display;
+                EGLSurface m_draw;
+                EGLSurface m_read;
+                EGLContext m_context;
+            } egl;
+#endif
+#endif
+        };
+    };
+
+    // Base context, with virtual functions for managing context
+    struct IContext {
+        virtual void makeCurrent(ContextVariant* store) const = 0;
+        virtual void restoreContext(const ContextVariant* store) const = 0;
+    };
 
     // We use int64_t as a common conversion point for all graphics APIs to
     // match OpenXR.
@@ -166,6 +298,8 @@ namespace openxr_api_layer::utils::graphics {
         virtual ~IGraphicsDevice() = default;
 
         virtual Api getApi() const = 0;
+
+        virtual IContext* getContext() = 0;
 
         virtual std::shared_ptr<IGraphicsTimer> createTimer() = 0;
         virtual std::shared_ptr<IGraphicsFence> createFence(bool shareable = true) = 0;

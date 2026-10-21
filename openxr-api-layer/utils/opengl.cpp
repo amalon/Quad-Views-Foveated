@@ -34,138 +34,9 @@ namespace {
 
     constexpr bool PreferNtHandle = false;
 
-    struct OpenGLContextStore;
-
-    // Base OpenGL context, with virtual functions for managing context
-    struct OpenGLContext {
-        virtual void makeCurrent(OpenGLContextStore* store) const = 0;
-        virtual void restoreContext(const OpenGLContextStore* store) const = 0;
-    };
-
-    // Union of each platform's context, which can be safely stored on the stack
-    struct OpenGLContextStore {
-        union {
-#ifdef XR_USE_PLATFORM_WIN32
-            struct {
-                void clear() {
-                    m_hDC = NULL;
-                    m_hGLRC = NULL;
-                }
-
-                void fromBinding(const XrGraphicsBindingOpenGLWin32KHR* binding) {
-                    m_hDC = binding->hDC;
-                    m_hGLRC = binding->hGLRC;
-                }
-
-                void fromCurrent() {
-                    m_hDC = wglGetCurrentDC();
-                    m_hGLRC = wglGetCurrentContext();
-                }
-
-                void makeCurrent() const {
-                    return wglMakeCurrent(m_hDC, m_hGLRC);
-                }
-
-                HDC m_hDC;
-                hGLRC m_hGLRC;
-            } win32;
-#endif
-#ifdef XR_USE_PLATFORM_XLIB
-            struct {
-                void clear() {
-                    m_display = nullptr;
-                    m_drawable = None;
-                    m_ctx = nullptr;
-                }
-
-                void fromBinding(const XrGraphicsBindingOpenGLXlibKHR* binding) {
-                    m_display = binding->xDisplay;
-                    m_drawable = binding->glxDrawable;
-                    m_ctx = binding->glxContext;
-                }
-
-                void fromCurrent() {
-                    m_display = glXGetCurrentDisplay();
-                    m_drawable = glXGetCurrentDrawable();
-                    m_ctx = glXGetCurrentContext();
-                }
-
-                bool makeCurrent() const {
-                    return glXMakeCurrent(m_display, m_drawable, m_ctx);
-                }
-
-                Display* m_display;
-                GLXDrawable m_drawable;
-                GLXContext m_ctx;
-            } xlib;
-#endif
-#ifdef XR_USE_PLATFORM_XCB
-#error incomplete
-            struct {
-                void clear() {
-                }
-
-                void fromBinding(const XrGraphicsBindingOpenGLXcbKHR* binding) {
-                    m_conn = binding->connection;
-                    m_drawable = binding->glxDrawable;
-                    m_context = binding->glxContext;
-                    // m_oldContextTag
-                }
-
-                void fromCurrent() {
-
-                }
-
-                bool makeCurrent() const {
-                    xcb_glx_make_current(m_conn, m_drawable, m_context,
-                                         m_oldContextTag);
-                }
-
-                xcb_connection_t* m_conn;
-                xcb_glx_drawable_t m_drawable;
-                xcb_glx_context_t m_context;
-                //xcb_glx_context_tag_t m_oldContextTag;
-            } xcb;
-#endif
-#ifdef XR_USE_PLATFORM_EGL
-            struct {
-                void clear() {
-                    // FIXME m_display?
-                    m_draw = EGL_NO_SURFACE;
-                    m_read = EGL_NO_SURFACE;
-                    m_context = EGL_NO_CONTEXT;
-                }
-
-                void fromBinding(const XrGraphicsBindingEGLMNDX* binding) {
-                    m_display = binding->display;
-                    m_draw = EGL_NO_SURFACE;
-                    m_read = EGL_NO_SURFACE;
-                    m_context = binding->context;
-                }
-
-                void fromCurrent() {
-                    m_display = eglGetCurrentDisplay();
-                    m_draw = eglGetCurrentSurface(EGL_DRAW);
-                    m_read = eglGetCurrentSurface(EGL_READ);
-                    m_context = eglGetCurrentContext();
-                }
-
-                bool makeCurrent() const {
-                    return eglMakeCurrent(m_display, m_draw, m_read, m_context);
-                }
-
-                EGLDisplay m_display;
-                EGLSurface m_draw;
-                EGLSurface m_read;
-                EGLContext m_context;
-            } egl;
-#endif
-        };
-    };
-
     // Scoped context, restored on destruction
     struct OpenGLContextScoped {
-        OpenGLContextScoped(OpenGLContext* context) : m_context(context) {
+        OpenGLContextScoped(IContext* context) : m_context(context) {
             m_context->makeCurrent(&m_ctx);
         }
 
@@ -173,42 +44,42 @@ namespace {
             m_context->restoreContext(&m_ctx);
         }
 
-        OpenGLContextStore m_ctx;
-        OpenGLContext* m_context;
+        ContextVariant m_ctx;
+        IContext* m_context;
     };
 
     // Platform traits provide a way to access the appropriate member of the
-    // union in OpenGLContextStore, based on the OpenXR binding struct.
+    // union in ContextVariant, based on the OpenXR binding struct.
     template <typename GraphicsBinding>
     struct OpenGLPlatformTraits;
 
     // Platform specific OpenGL context state
     template <typename GraphicsBinding>
-    struct OpenGLPlatformContext : OpenGLContext {
+    struct OpenGLPlatformContext : IContext {
         using Traits = OpenGLPlatformTraits<GraphicsBinding>;
 
         OpenGLPlatformContext(const GraphicsBinding* binding) {
             Traits::getPlatformContext(&m_context)->fromBinding(binding);
         }
 
-        virtual void makeCurrent(OpenGLContextStore* store) const {
+        virtual void makeCurrent(ContextVariant* store) const {
             Traits::getPlatformContext(store)->fromCurrent();
             Traits::getPlatformContext(&m_context)->makeCurrent();
         }
-        virtual void restoreContext(const OpenGLContextStore* store) const {
+        virtual void restoreContext(const ContextVariant* store) const {
             Traits::getPlatformContext(store)->makeCurrent();
         }
 
-        OpenGLContextStore m_context;
+        ContextVariant m_context;
     };
 
 #ifdef XR_USE_PLATFORM_WIN32
     template <>
     struct OpenGLPlatformTraits<XrGraphicsBindingOpenGLWin32KHR> {
-        static auto* getPlatformContext(OpenGLContextStore* store) {
+        static auto* getPlatformContext(ContextVariant* store) {
             return &store->win32;
         }
-        static auto* getPlatformContext(const OpenGLContextStore* store) {
+        static auto* getPlatformContext(const ContextVariant* store) {
             return &store->win32;
         }
     };
@@ -218,10 +89,10 @@ namespace {
 #ifdef XR_USE_PLATFORM_XLIB
     template <>
     struct OpenGLPlatformTraits<XrGraphicsBindingOpenGLXlibKHR> {
-        static auto* getPlatformContext(OpenGLContextStore* store) {
+        static auto* getPlatformContext(ContextVariant* store) {
             return &store->xlib;
         }
-        static auto* getPlatformContext(const OpenGLContextStore* store) {
+        static auto* getPlatformContext(const ContextVariant* store) {
             return &store->xlib;
         }
     };
@@ -231,10 +102,10 @@ namespace {
 #ifdef XR_USE_PLATFORM_XCB
     template <>
     struct OpenGLPlatformTraits<XrGraphicsBindingOpenGLXcbKHR> {
-        static auto* getPlatformContext(OpenGLContextStore* store) {
+        static auto* getPlatformContext(ContextVariant* store) {
             return &store->xcb;
         }
-        static auto* getPlatformContext(const OpenGLContextStore* store) {
+        static auto* getPlatformContext(const ContextVariant* store) {
             return &store->xcb;
         }
     };
@@ -244,10 +115,10 @@ namespace {
 #ifdef XR_USE_PLATFORM_EGL
     template <>
     struct OpenGLPlatformTraits<XrGraphicsBindingEGLMNDX> {
-        static auto* getPlatformContext(OpenGLContextStore* store) {
+        static auto* getPlatformContext(ContextVariant* store) {
             return &store->egl;
         }
-        static auto* getPlatformContext(const OpenGLContextStore* store) {
+        static auto* getPlatformContext(const ContextVariant* store) {
             return &store->egl;
         }
     };
@@ -256,7 +127,7 @@ namespace {
 
     struct OpenGLGraphicsDevice : IGraphicsDevice {
         // Takes ownership of context
-        OpenGLGraphicsDevice(OpenGLContext* context) : m_context(context) {
+        OpenGLGraphicsDevice(IContext* context) : m_context(context) {
             TraceLocalActivity(local);
             TraceLoggingWriteStart(local, "OpenGLGraphicsDevice_Create", TLPArg(device, "OpenGLDevice"));
 
@@ -289,6 +160,10 @@ namespace {
 
         Api getApi() const override {
             return Api::OpenGL;
+        }
+
+        IContext* getContext() override {
+            return m_context.get();
         }
 
         std::shared_ptr<IGraphicsTimer> createTimer() override {
@@ -442,12 +317,12 @@ namespace {
                    format == GL_DEPTH24_STENCIL8 || format == GL_DEPTH32F_STENCIL8;
         }
 
-        const std::unique_ptr<OpenGLContext> m_context;
+        const std::unique_ptr<IContext> m_context;
     };
 
     template <typename Binding>
     std::shared_ptr<IGraphicsDevice> wrapApplicationDeviceOpenGL(const Binding& binding) {
-        OpenGLContext* context = new OpenGLPlatformContext<Binding>(&binding);
+        IContext* context = new OpenGLPlatformContext<Binding>(&binding);
         return std::make_shared<OpenGLGraphicsDevice>(context);
     }
 } // namespace
