@@ -48,6 +48,27 @@ namespace openxr_api_layer::log {
 
 // FIXME port to Linux, gpuvis?
 
+//#define TRACE_TO_STDOUT
+#ifdef TRACE_TO_STDOUT
+
+#define IsTraceEnabled() false
+
+#define TraceLocalActivity(activity) do {} while (false)
+#define TraceLoggingWriteStart(activity, ...) do {} while (false)
+#define TraceLoggingWriteTagged(activity, ...) do {} while (false)
+#define TraceLoggingWriteStop(activity, ...) do {} while (false)
+#define TraceLoggingWrite(activity, str, ...) do { (printf("[TRACE] " str "\n") __VA_OPT__(,) __VA_ARGS__); } while (false)
+
+#define TLArg(var, name) printf("         %s: %lu\n", name, (long)var)
+#define TLPArg(var, name) printf("         %s: %p\n", name, (void *)var)
+#ifdef _M_IX86
+#define TLXArg TLArg
+#else
+#define TLXArg TLPArg
+#endif
+
+#else
+
 #define IsTraceEnabled() false
 
 #define TraceLocalActivity(activity) do {} while (false)
@@ -64,7 +85,9 @@ namespace openxr_api_layer::log {
 #define TLXArg TLPArg
 #endif
 
-#endif // _WIN32
+#endif
+
+#endif
 
     // General logging function.
     void Log(const char* fmt, ...);
