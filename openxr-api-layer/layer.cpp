@@ -701,6 +701,7 @@ namespace openxr_api_layer {
                             const XrGraphicsBindingOpenGLWin32KHR* win32Bindings =
                                 reinterpret_cast<const XrGraphicsBindingOpenGLWin32KHR*>(entry);
                             initializeDeviceContext(win32Bindings);
+                            m_apiHelper.reset(new OpenGLApiHelper);
                             m_isSupportedGraphicsApi = true;
                             break;
                         }
@@ -710,6 +711,7 @@ namespace openxr_api_layer {
                             const XrGraphicsBindingOpenGLXlibKHR* xlibBindings =
                                 reinterpret_cast<const XrGraphicsBindingOpenGLXlibKHR*>(entry);
                             initializeDeviceContext(xlibBindings);
+                            m_apiHelper.reset(new OpenGLApiHelper);
                             m_isSupportedGraphicsApi = true;
                             break;
                         }
@@ -719,6 +721,7 @@ namespace openxr_api_layer {
                             const XrGraphicsBindingOpenGLXcbKHR* xcbBindings =
                                 reinterpret_cast<const XrGraphicsBindingOpenGLXcbKHR*>(entry);
                             initializeDeviceContext(xcbBindings);
+                            m_apiHelper.reset(new OpenGLApiHelper);
                             m_isSupportedGraphicsApi = true;
                             break;
                         }
@@ -728,6 +731,7 @@ namespace openxr_api_layer {
                             const XrGraphicsBindingEGLMNDX* eglBindings =
                                 reinterpret_cast<const XrGraphicsBindingEGLMNDX*>(entry);
                             initializeDeviceContext(eglBindings);
+                            m_apiHelper.reset(new OpenGLApiHelper);
                             m_isSupportedGraphicsApi = true;
                             break;
                         }
@@ -739,6 +743,7 @@ namespace openxr_api_layer {
                             const XrGraphicsBindingVulkanKHR* vulkanBindings =
                                 reinterpret_cast<const XrGraphicsBindingVulkanKHR*>(entry);
                             initializeDeviceContext(vulkanBindings);
+                            m_apiHelper.reset(new VulkanApiHelper);
                             m_isSupportedGraphicsApi = true;
                             break;
                         }
@@ -748,6 +753,7 @@ namespace openxr_api_layer {
                             const XrGraphicsBindingD3D11KHR* d3dBindings =
                                 reinterpret_cast<const XrGraphicsBindingD3D11KHR*>(entry);
                             initializeDeviceContext(d3dBindings);
+                            m_apiHelper.reset(new D3D11ApiHelper);
                             m_isSupportedGraphicsApi = true;
                             break;
                         }
@@ -812,6 +818,7 @@ namespace openxr_api_layer {
 
                     m_graphicsDevice = nullptr;
                     m_apiHelper = nullptr;
+                    m_compositionInitialized = false;
 
                     m_gazeSpaces.clear();
                     m_swapchains.clear();
@@ -2500,11 +2507,9 @@ namespace openxr_api_layer {
             // TODO: Support D3D12.
 
             // Lazy initialization of the composition resources.
-            if (!m_apiHelper) {
+            if (!m_compositionInitialized && m_apiHelper) {
                 initializeCompositionResources(m_graphicsDevice.get());
-            }
-            if (!m_apiHelper) {
-                return;
+                m_compositionInitialized = true;
             }
 
 #ifdef _WIN32
@@ -2869,32 +2874,6 @@ namespace openxr_api_layer {
         void initializeCompositionResources(graphics::IGraphicsDevice* device)
         {
             TraceLoggingWrite(g_traceProvider, "InitializeCompositionResources");
-
-            switch (device->getApi()) {
-#ifdef XR_USE_GRAPHICS_API_OPENGL
-            case graphics::Api::OpenGL:
-                m_apiHelper.reset(new OpenGLApiHelper);
-                break;
-#endif
-#ifdef XR_USE_GRAPHICS_API_VULKAN
-            case graphics::Api::Vulkan:
-                m_apiHelper.reset(new VulkanApiHelper);
-                break;
-#endif
-#ifdef XR_USE_GRAPHICS_API_D3D11
-            case graphics::Api::D3D11:
-                m_apiHelper.reset(new D3D11ApiHelper);
-                break;
-#endif
-#ifdef XR_USE_GRAPHICS_API_D3D12
-            case graphics::Api::D3D12:
-                // Use D3D11 I guess
-                m_apiHelper.reset(new D3D11ApiHelper);
-                break;
-#endif
-            default:
-                return;
-            }
 
             m_apiHelper->initializeCompositionResources(device);
 
@@ -3353,6 +3332,7 @@ namespace openxr_api_layer {
 
         std::shared_ptr<graphics::IGraphicsDevice> m_graphicsDevice;
         std::unique_ptr<IApiHelper> m_apiHelper;
+        bool m_compositionInitialized{false};
 
         // Turbo mode.
         std::chrono::time_point<std::chrono::steady_clock> m_lastFrameWaitTimestamp{};
