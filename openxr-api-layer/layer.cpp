@@ -41,6 +41,15 @@
 #include <SharpeningCS.h>
 #endif
 
+#ifdef XR_USE_GRAPHICS_API_OPENGL
+const std::string g_ProjectionVert =
+#include "Projection.vert"
+;
+const std::string g_ProjectionFrag =
+#include "Projection.frag"
+;
+#endif
+
 namespace openxr_api_layer {
 
     using namespace log;
