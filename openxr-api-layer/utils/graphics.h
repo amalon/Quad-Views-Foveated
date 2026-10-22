@@ -228,6 +228,9 @@ namespace openxr_api_layer::utils::graphics {
     struct IContext {
         virtual void makeCurrent(ContextVariant* store) const = 0;
         virtual void restoreContext(const ContextVariant* store) const = 0;
+        virtual void* getGLProcAddress(const char* name) const {
+            return nullptr;
+        }
     };
 
     // Scoped context, restored on destruction

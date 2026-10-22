@@ -48,12 +48,15 @@ namespace {
             Traits::getPlatformContext(&m_context)->fromBinding(binding);
         }
 
-        virtual void makeCurrent(ContextVariant* store) const {
+        void makeCurrent(ContextVariant* store) const override {
             Traits::getPlatformContext(store)->fromCurrent();
             Traits::getPlatformContext(&m_context)->makeCurrent();
         }
-        virtual void restoreContext(const ContextVariant* store) const {
+        void restoreContext(const ContextVariant* store) const override {
             Traits::getPlatformContext(store)->makeCurrent();
+        }
+        void* getGLProcAddress(const char* name) const override {
+            return Traits::getProcAddress(name);
         }
 
         ContextVariant m_context;
@@ -68,6 +71,16 @@ namespace {
         static auto* getPlatformContext(const ContextVariant* store) {
             return &store->win32;
         }
+        static void* getProcAddress(const char* name) {
+            void *p = (void *)wglGetProcAddress(name);
+            if (p == 0 ||
+               (p == (void*)0x1) || (p == (void*)0x2) || (p == (void*)0x3) ||
+               (p == (void*)-1) ) {
+                HMODULE module = LoadLibraryA("opengl32.dll");
+                p = (void *)GetProcAddress(module, name);
+            }
+            return p;
+        }
     };
     using OpenGLContextWin32 = OpenGLPlatformContext<XrGraphicsBindingOpenGLWin32KHR>;
 #endif
@@ -80,6 +93,9 @@ namespace {
         }
         static auto* getPlatformContext(const ContextVariant* store) {
             return &store->xlib;
+        }
+        static void* getProcAddress(const char* name) {
+            return (void*)glXGetProcAddressARB((const GLubyte*)name);
         }
     };
     using OpenGLContextXlib = OpenGLPlatformContext<XrGraphicsBindingOpenGLXlibKHR>;
@@ -94,6 +110,10 @@ namespace {
         static auto* getPlatformContext(const ContextVariant* store) {
             return &store->xcb;
         }
+        static void* getProcAddress(const char* name) {
+            // FIXME ?
+            return nullptr;
+        }
     };
     using OpenGLContextXcb = OpenGLPlatformContext<XrGraphicsBindingOpenGLXcbKHR>;
 #endif
@@ -106,6 +126,9 @@ namespace {
         }
         static auto* getPlatformContext(const ContextVariant* store) {
             return &store->egl;
+        }
+        static void* getProcAddress(const char* name) {
+            return (void *)eglGetProcAddress(name);
         }
     };
     using OpenGLContextEGL= OpenGLPlatformContext<XrGraphicsBindingEGLMNDX>;
