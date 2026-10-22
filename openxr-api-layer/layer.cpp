@@ -2223,9 +2223,125 @@ namespace openxr_api_layer {
 
 #ifdef XR_USE_GRAPHICS_API_OPENGL
         struct OpenGLApiHelper : TApiHelper<graphics::OpenGL> {
+
+            struct {
+                PFNGLATTACHSHADERPROC AttachShader{nullptr};
+                PFNGLCOMPILESHADERPROC CompileShader{nullptr};
+                PFNGLCREATEPROGRAMPROC CreateProgram{nullptr};
+                PFNGLCREATESHADERPROC CreateShader{nullptr};
+                PFNGLDELETEPROGRAMPROC DeleteProgram{nullptr};
+                PFNGLDELETESHADERPROC DeleteShader{nullptr};
+                PFNGLGETPROGRAMINFOLOGPROC GetProgramInfoLog{nullptr};
+                PFNGLGETPROGRAMIVPROC GetProgramiv{nullptr};
+                PFNGLGETSHADERINFOLOGPROC GetShaderInfoLog{nullptr};
+                PFNGLGETSHADERIVPROC GetShaderiv{nullptr};
+                PFNGLLINKPROGRAMPROC LinkProgram{nullptr};
+                PFNGLSHADERSOURCEPROC ShaderSource{nullptr};
+            } gl;
+
+            void initFunctions(const graphics::IContext* context) {
+                // :'<,'>s/\(PFN.*PROC\) \(.*\){nullptr}/gl.\2 = (\1)context->getGLProcAddress("gl\2")/g
+                gl.AttachShader = (PFNGLATTACHSHADERPROC)context->getGLProcAddress("glAttachShader");
+                gl.CompileShader = (PFNGLCOMPILESHADERPROC)context->getGLProcAddress("glCompileShader");
+                gl.CreateProgram = (PFNGLCREATEPROGRAMPROC)context->getGLProcAddress("glCreateProgram");
+                gl.CreateShader = (PFNGLCREATESHADERPROC)context->getGLProcAddress("glCreateShader");
+                gl.DeleteProgram = (PFNGLDELETEPROGRAMPROC)context->getGLProcAddress("glDeleteProgram");
+                gl.DeleteShader = (PFNGLDELETESHADERPROC)context->getGLProcAddress("glDeleteShader");
+                gl.GetProgramInfoLog = (PFNGLGETPROGRAMINFOLOGPROC)context->getGLProcAddress("glGetProgramInfoLog");
+                gl.GetProgramiv = (PFNGLGETPROGRAMIVPROC)context->getGLProcAddress("glGetProgramiv");
+                gl.GetShaderInfoLog = (PFNGLGETSHADERINFOLOGPROC)context->getGLProcAddress("glGetShaderInfoLog");
+                gl.GetShaderiv = (PFNGLGETSHADERIVPROC)context->getGLProcAddress("glGetShaderiv");
+                gl.LinkProgram = (PFNGLLINKPROGRAMPROC)context->getGLProcAddress("glLinkProgram");
+                gl.ShaderSource = (PFNGLSHADERSOURCEPROC)context->getGLProcAddress("glShaderSource");
+            }
+
+            GLuint buildShader(GLenum shaderType, const std::string &name, const std::string &src) {
+                GLuint shader = gl.CreateShader(shaderType);
+
+                const GLchar *shaderSrc = src.c_str();
+                const GLint shaderLen = src.size();
+                gl.ShaderSource(shader, 1, &shaderSrc, &shaderLen);
+
+                gl.CompileShader(shader);
+                GLint success = 0;
+                gl.GetShaderiv(shader, GL_COMPILE_STATUS, &success);
+                if (success == GL_FALSE) {
+                    GLint maxLength = 0;
+                    gl.GetShaderiv(shader, GL_INFO_LOG_LENGTH, &maxLength);
+
+                    std::vector<GLchar> errorLog(maxLength);
+                    gl.GetShaderInfoLog(shader, maxLength, &maxLength, &errorLog[0]);
+
+                    Log(fmt::format("Shader compilation failed for {}:\n{}\n",
+                                    name, &errorLog[0]));
+
+                    gl.DeleteShader(shader);
+
+                    return 0;
+                }
+                return shader;
+            }
+
+            GLuint buildProgram(GLuint vert, GLuint frag) {
+                GLuint program = gl.CreateProgram();
+
+                gl.AttachShader(program, vert);
+                gl.AttachShader(program, frag);
+
+                gl.LinkProgram(program);
+                GLint success = 0;
+                gl.GetProgramiv(program, GL_LINK_STATUS, &success);
+                if (success == GL_FALSE) {
+                    GLint maxLength = 0;
+                    gl.GetProgramiv(program, GL_INFO_LOG_LENGTH, &maxLength);
+
+                    std::vector<GLchar> errorLog(maxLength);
+                    gl.GetProgramInfoLog(program, maxLength, &maxLength, &errorLog[0]);
+
+                    Log(fmt::format("Shader link failed:\n{}\n",
+                                    &errorLog[0]));
+
+                    gl.DeleteProgram(program);
+
+                    return 0;
+                }
+                return program;
+            }
+
+            void initializeCompositionResources(graphics::IGraphicsDevice* device) override {
+                // Set up function pointers
+                auto* context = device->getContext();
+                initFunctions(context);
+
+                m_projectionVert = buildShader(GL_VERTEX_SHADER, "Projection.vert", g_ProjectionVert);
+                if (!m_projectionVert) {
+                    // FAIL!
+                    return;
+                }
+                m_projectionFrag = buildShader(GL_FRAGMENT_SHADER, "Projection.frag", g_ProjectionFrag);
+                if (!m_projectionFrag) {
+                    // FAIL!
+                    gl.DeleteShader(m_projectionVert);
+                    m_projectionVert = 0;
+                    return;
+                }
+                m_projectionProg = buildProgram(m_projectionVert, m_projectionFrag);
+                if (!m_projectionProg) {
+                    // FAIL!
+                    gl.DeleteShader(m_projectionVert);
+                    m_projectionVert = 0;
+                    gl.DeleteShader(m_projectionFrag);
+                    m_projectionFrag = 0;
+                }
+            }
+
             Swapchain* createSwapchain() override {
                 return new OpenGLSwapchain;
             }
+
+            GLuint m_projectionVert{0};
+            GLuint m_projectionFrag{0};
+            GLuint m_projectionProg{0};
         };
 #endif
 
