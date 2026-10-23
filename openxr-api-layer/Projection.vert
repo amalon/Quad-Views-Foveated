@@ -33,7 +33,7 @@ out vec3 projectedFocusCoord;
 void main() {
     texcoord = vec2((gl_VertexID == 1) ? 2.0 : 0.0,
                     (gl_VertexID == 2) ? 2.0 : 0.0);
-    gl_Position = vec4(texcoord * vec2(2.0, -2.0) + vec2(-1.0, 1.0), 0.0, 1.0);
+    gl_Position = vec4(texcoord * vec2(2.0, 2.0) + vec2(-1.0, -1.0), 0.0, 1.0);
     projectedFocusCoord = (focusProjection * gl_Position).xyw;
 }
 )"
