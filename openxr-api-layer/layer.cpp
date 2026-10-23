@@ -29,6 +29,8 @@
 #include <util.h>
 #include <utils/graphics.h>
 
+#include <glm/gtc/matrix_inverse.hpp>
+
 #define A_CPU
 #include <ffx_a.h>
 #include <ffx_cas.h>
@@ -770,6 +772,10 @@ namespace openxr_api_layer {
                         entry = entry->next;
                     }
 
+                    if (m_apiHelper) {
+                        m_apiHelper->m_layer = this;
+                    }
+
                     // Initialize the resources for the eye tracker.
                     if (m_trackerType != Tracker::NoTracker) {
                         switch (m_trackerType) {
@@ -816,6 +822,19 @@ namespace openxr_api_layer {
 
             if (XR_SUCCEEDED(result)) {
                 if (isSessionHandled(session)) {
+                    if (m_apiHelper) {
+                        // Make context current, and restore application context
+                        // upon leaving this scope.
+                        graphics::ContextScoped contextScope(m_graphicsDevice->getContext());
+
+                        m_apiHelper->cleanupCompositionResources(m_graphicsDevice.get());
+
+                        for (auto& pair: m_swapchains) {
+                            Swapchain* entry = pair.second.get();
+                            entry->cleanupResources(this, m_graphicsDevice.get());
+                        }
+                    }
+
                     for (uint32_t i = 0; i < std::size(m_compositionTimer); i++) {
                         m_compositionTimer[i].reset();
                     }
@@ -1228,11 +1247,21 @@ namespace openxr_api_layer {
                 auto it = m_swapchains.find(swapchain);
                 if (it != m_swapchains.end()) {
                     Swapchain* entry = it->second.get();
+
+                    {
+                        // Make context current, and restore application context
+                        // upon leaving this scope.
+                        graphics::ContextScoped contextScope(m_graphicsDevice->getContext());
+
+                        entry->cleanupResources(this, m_graphicsDevice.get());
+                    }
+
                     for (uint32_t i = 0; i < xr::StereoView::Count; i++) {
                         if (entry->fullFovSwapchain[i] != XR_NULL_HANDLE) {
                             OpenXrApi::xrDestroySwapchain(entry->fullFovSwapchain[i]);
                         }
                     }
+
                     m_swapchains.erase(it);
                 }
             }
@@ -2121,6 +2150,8 @@ namespace openxr_api_layer {
         struct Swapchain {
             virtual void populateImagesCache(OpenXrApi* xrApi, XrSwapchain swapchain) = 0;
             virtual void populateFullFovImagesCache(OpenXrApi* xrApi, uint32_t viewIndex) = 0;
+            // Called with graphics context active
+            virtual void cleanupResources(OpenXrLayer *layer, graphics::IGraphicsDevice* device) = 0;
 
             std::deque<uint32_t> acquiredIndex;
             uint32_t lastReleasedIndex{0};
@@ -2182,12 +2213,65 @@ namespace openxr_api_layer {
         };
 
 #ifdef XR_USE_GRAPHICS_API_OPENGL
+        struct OpenGLApiHelper;
+
         struct OpenGLSwapchain : TSwapchain<graphics::OpenGL,
                                             XrSwapchainImageOpenGLKHR,
                                             XR_TYPE_SWAPCHAIN_IMAGE_OPENGL_KHR> {
             ApiTraits::Texture getImage(const TSwapchain::XrSwapchainImage& image) const override {
                 return image.image;
             }
+
+            // Caller must restore previous FBO after use
+            bool bindFullFovFBO(OpenGLApiHelper* apiHelper,
+                                uint32_t viewIndex, unsigned int acquiredImageIndex) {
+                auto& fbos = fullFovSwapchainFBOs[viewIndex];
+                // Allocate space for FBOs for this viewIndex
+                if (fbos.empty())
+                    fbos.resize(fullFovSwapchainImages[viewIndex].size(), 0);
+                // Check acquiredImageIndex is in range
+                if (acquiredImageIndex >= fbos.size())
+                    return 0;
+                GLuint fbo = fbos[acquiredImageIndex];
+                if (!fbo) {
+                    TraceLoggingWrite(g_traceProvider,
+                                      "Creating Full Fov FBO",
+                                      TLArg(viewIndex, "viewIndex"),
+                                      TLArg(acquiredImageIndex, "acquiredImageIndex"));
+                    // Create FBO
+                    apiHelper->gl.GenFramebuffers(1, &fbo);
+                    // Bind FBO
+                    apiHelper->gl.BindFramebuffer(GL_FRAMEBUFFER, fbo);
+                    // Attach texture
+                    apiHelper->gl.FramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D,
+                                                       fullFovSwapchainImages[viewIndex][acquiredImageIndex], 0);
+                    // Check completeness
+                    GLenum status = apiHelper->gl.CheckFramebufferStatus(GL_FRAMEBUFFER);
+                    if (status != GL_FRAMEBUFFER_COMPLETE) {
+                        Log(fmt::format("FBO incomplete: %lu",
+                                        status));
+                        // Fail, delete
+                        apiHelper->gl.DeleteFramebuffers(1, &fbo);
+                        return false;
+                    }
+                    fbos[acquiredImageIndex] = fbo;
+                } else {
+                    apiHelper->gl.BindFramebuffer(GL_FRAMEBUFFER, fbo);
+                }
+                return true;
+            }
+
+            void cleanupResources(OpenXrLayer *layer, graphics::IGraphicsDevice* device) override {
+                auto* apiHelper = static_cast<OpenGLApiHelper*>(layer->m_apiHelper.get());
+                // Delete any FBOs
+                for (unsigned int i = 0; i < xr::StereoView::Count; ++i) {
+                    apiHelper->gl.DeleteFramebuffers(fullFovSwapchainFBOs[i].size(), fullFovSwapchainFBOs[i].data());
+                    fullFovSwapchainFBOs[i].clear();
+                }
+            }
+
+            // FBOs for fullFovSwapchainImages[]
+            std::vector<GLuint> fullFovSwapchainFBOs[xr::StereoView::Count];
         };
 #endif
 
@@ -2197,6 +2281,9 @@ namespace openxr_api_layer {
                                             XR_TYPE_SWAPCHAIN_IMAGE_VULKAN_KHR> {
             ApiTraits::Texture getImage(const TSwapchain::XrSwapchainImage& image) const override {
                 return image.image;
+            }
+
+            void cleanupResources(OpenXrLayer *layer, graphics::IGraphicsDevice* device) override {
             }
         };
 #endif
@@ -2208,13 +2295,24 @@ namespace openxr_api_layer {
             ApiTraits::Texture getImage(const TSwapchain::XrSwapchainImage& image) const override {
                 return image.texture;
             }
+
+            void cleanupResources(OpenXrLayer *layer, graphics::IGraphicsDevice* device) override {
+            }
         };
 #endif
 
         struct IApiHelper {
-            virtual void initializeCompositionResources(graphics::IGraphicsDevice* device) {
-            }
+            virtual void initializeCompositionResources(graphics::IGraphicsDevice* device) = 0;
+            virtual void cleanupCompositionResources(graphics::IGraphicsDevice* device) = 0;
             virtual Swapchain* createSwapchain() = 0;
+            virtual void composite(graphics::IGraphicsDevice* device, uint32_t viewIndex,
+                                   Swapchain* swapchainForStereoView,
+                                   const XrCompositionLayerProjectionView& focusView,
+                                   Swapchain* swapchainForFocusView,
+                                   uint32_t acquiredImageIndex,
+                                   XrCompositionLayerFlags layerFlags) = 0;
+
+            OpenXrLayer* m_layer;
         };
 
         template <typename ApiTraits>
@@ -2225,34 +2323,70 @@ namespace openxr_api_layer {
         struct OpenGLApiHelper : TApiHelper<graphics::OpenGL> {
 
             struct {
+                PFNGLACTIVETEXTUREPROC ActiveTexture{nullptr};
                 PFNGLATTACHSHADERPROC AttachShader{nullptr};
+                PFNGLBINDSAMPLERPROC BindSampler{nullptr};
                 PFNGLCOMPILESHADERPROC CompileShader{nullptr};
                 PFNGLCREATEPROGRAMPROC CreateProgram{nullptr};
                 PFNGLCREATESHADERPROC CreateShader{nullptr};
                 PFNGLDELETEPROGRAMPROC DeleteProgram{nullptr};
+                PFNGLDELETESAMPLERSPROC DeleteSamplers{nullptr};
                 PFNGLDELETESHADERPROC DeleteShader{nullptr};
+                PFNGLGENSAMPLERSPROC GenSamplers{nullptr};
                 PFNGLGETPROGRAMINFOLOGPROC GetProgramInfoLog{nullptr};
                 PFNGLGETPROGRAMIVPROC GetProgramiv{nullptr};
                 PFNGLGETSHADERINFOLOGPROC GetShaderInfoLog{nullptr};
                 PFNGLGETSHADERIVPROC GetShaderiv{nullptr};
+                PFNGLGETUNIFORMLOCATIONPROC GetUniformLocation{nullptr};
                 PFNGLLINKPROGRAMPROC LinkProgram{nullptr};
+                PFNGLSAMPLERPARAMETERFVPROC SamplerParameterfv{nullptr};
+                PFNGLSAMPLERPARAMETERIPROC SamplerParameteri{nullptr};
                 PFNGLSHADERSOURCEPROC ShaderSource{nullptr};
+                PFNGLUNIFORM1FPROC Uniform1f{nullptr};
+                PFNGLUNIFORM1IPROC Uniform1i{nullptr};
+                PFNGLUNIFORMMATRIX4FVPROC UniformMatrix4fv{nullptr};
+                PFNGLUSEPROGRAMPROC UseProgram{nullptr};
+
+                PFNGLGENFRAMEBUFFERSPROC GenFramebuffers{nullptr};
+                PFNGLBINDFRAMEBUFFERPROC BindFramebuffer{nullptr};
+                PFNGLFRAMEBUFFERTEXTURE2DPROC FramebufferTexture2D{nullptr};
+                PFNGLCHECKFRAMEBUFFERSTATUSPROC CheckFramebufferStatus{nullptr};
+                PFNGLDELETEFRAMEBUFFERSPROC DeleteFramebuffers{nullptr};
+                PFNGLUNIFORM2FPROC Uniform2f{nullptr};
             } gl;
 
             void initFunctions(const graphics::IContext* context) {
                 // :'<,'>s/\(PFN.*PROC\) \(.*\){nullptr}/gl.\2 = (\1)context->getGLProcAddress("gl\2")/g
+                gl.ActiveTexture = (PFNGLACTIVETEXTUREPROC)context->getGLProcAddress("glActiveTexture");
                 gl.AttachShader = (PFNGLATTACHSHADERPROC)context->getGLProcAddress("glAttachShader");
+                gl.BindSampler = (PFNGLBINDSAMPLERPROC)context->getGLProcAddress("glBindSampler");
                 gl.CompileShader = (PFNGLCOMPILESHADERPROC)context->getGLProcAddress("glCompileShader");
                 gl.CreateProgram = (PFNGLCREATEPROGRAMPROC)context->getGLProcAddress("glCreateProgram");
                 gl.CreateShader = (PFNGLCREATESHADERPROC)context->getGLProcAddress("glCreateShader");
                 gl.DeleteProgram = (PFNGLDELETEPROGRAMPROC)context->getGLProcAddress("glDeleteProgram");
+                gl.DeleteSamplers = (PFNGLDELETESAMPLERSPROC)context->getGLProcAddress("glDeleteSamplers");
                 gl.DeleteShader = (PFNGLDELETESHADERPROC)context->getGLProcAddress("glDeleteShader");
+                gl.GenSamplers = (PFNGLGENSAMPLERSPROC)context->getGLProcAddress("glGenSamplers");
                 gl.GetProgramInfoLog = (PFNGLGETPROGRAMINFOLOGPROC)context->getGLProcAddress("glGetProgramInfoLog");
                 gl.GetProgramiv = (PFNGLGETPROGRAMIVPROC)context->getGLProcAddress("glGetProgramiv");
                 gl.GetShaderInfoLog = (PFNGLGETSHADERINFOLOGPROC)context->getGLProcAddress("glGetShaderInfoLog");
                 gl.GetShaderiv = (PFNGLGETSHADERIVPROC)context->getGLProcAddress("glGetShaderiv");
+                gl.GetUniformLocation = (PFNGLGETUNIFORMLOCATIONPROC)context->getGLProcAddress("glGetUniformLocation");
                 gl.LinkProgram = (PFNGLLINKPROGRAMPROC)context->getGLProcAddress("glLinkProgram");
+                gl.SamplerParameterfv = (PFNGLSAMPLERPARAMETERFVPROC)context->getGLProcAddress("glSamplerParameterfv");
+                gl.SamplerParameteri = (PFNGLSAMPLERPARAMETERIPROC)context->getGLProcAddress("glSamplerParameteri");
                 gl.ShaderSource = (PFNGLSHADERSOURCEPROC)context->getGLProcAddress("glShaderSource");
+                gl.Uniform1f = (PFNGLUNIFORM1FPROC)context->getGLProcAddress("glUniform1f");
+                gl.Uniform1i = (PFNGLUNIFORM1IPROC)context->getGLProcAddress("glUniform1i");
+                gl.UniformMatrix4fv = (PFNGLUNIFORMMATRIX4FVPROC)context->getGLProcAddress("glUniformMatrix4fv");
+                gl.UseProgram = (PFNGLUSEPROGRAMPROC)context->getGLProcAddress("glUseProgram");
+
+                gl.GenFramebuffers = (PFNGLGENFRAMEBUFFERSPROC)context->getGLProcAddress("glGenFramebuffers");
+                gl.BindFramebuffer = (PFNGLBINDFRAMEBUFFERPROC)context->getGLProcAddress("glBindFramebuffer");
+                gl.FramebufferTexture2D = (PFNGLFRAMEBUFFERTEXTURE2DPROC)context->getGLProcAddress("glFramebufferTexture2D");
+                gl.CheckFramebufferStatus = (PFNGLCHECKFRAMEBUFFERSTATUSPROC)context->getGLProcAddress("glCheckFramebufferStatus");
+                gl.DeleteFramebuffers = (PFNGLDELETEFRAMEBUFFERSPROC)context->getGLProcAddress("glDeleteFramebuffers");
+                gl.Uniform2f = (PFNGLUNIFORM2FPROC)context->getGLProcAddress("glUniform2f");
             }
 
             GLuint buildShader(GLenum shaderType, const std::string &name, const std::string &src) {
@@ -2313,25 +2447,88 @@ namespace openxr_api_layer {
                 auto* context = device->getContext();
                 initFunctions(context);
 
+                // For FOV projection.
+                {
+                    glm::vec4 borderColor(0.0f);
+
+                    gl.GenSamplers(1, &m_linearClampSampler);
+                    gl.SamplerParameteri(m_linearClampSampler, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+                    gl.SamplerParameteri(m_linearClampSampler, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+                    gl.SamplerParameteri(m_linearClampSampler, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+                    gl.SamplerParameteri(m_linearClampSampler, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+                    gl.SamplerParameteri(m_linearClampSampler, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_BORDER);
+                    gl.SamplerParameterfv(m_linearClampSampler, GL_TEXTURE_BORDER_COLOR, &borderColor[0]);
+                }
+
                 m_projectionVert = buildShader(GL_VERTEX_SHADER, "Projection.vert", g_ProjectionVert);
                 if (!m_projectionVert) {
-                    // FAIL!
+                    cleanupCompositionResources(device);
                     return;
                 }
                 m_projectionFrag = buildShader(GL_FRAGMENT_SHADER, "Projection.frag", g_ProjectionFrag);
                 if (!m_projectionFrag) {
-                    // FAIL!
-                    gl.DeleteShader(m_projectionVert);
-                    m_projectionVert = 0;
+                    cleanupCompositionResources(device);
                     return;
                 }
                 m_projectionProg = buildProgram(m_projectionVert, m_projectionFrag);
                 if (!m_projectionProg) {
-                    // FAIL!
+                    cleanupCompositionResources(device);
+                    return;
+                }
+
+                // Find locations of uniforms
+                m_focusProjectionUniform = gl.GetUniformLocation(m_projectionProg, "focusProjection");
+                m_smoothingAreaUniform = gl.GetUniformLocation(m_projectionProg, "smoothingArea");
+                m_ignoreAlphaUniform = gl.GetUniformLocation(m_projectionProg, "ignoreAlpha");
+                m_isUnpremultipliedAlphaUniform = gl.GetUniformLocation(m_projectionProg, "isUnpremultipliedAlpha");
+                m_debugFocusViewUniform = gl.GetUniformLocation(m_projectionProg, "debugFocusView");
+                m_eyeGazeUniform = gl.GetUniformLocation(m_projectionProg, "eyeGaze");
+                m_sourceStereoTextureUniform = gl.GetUniformLocation(m_projectionProg, "sourceStereoTexture");
+                m_sourceFocusTextureUniform = gl.GetUniformLocation(m_projectionProg, "sourceFocusTexture");
+
+                // FIXME port sharpening compute shader
+
+                {
+                    // Save texture
+                    GLint prevTexture;
+                    glGetIntegerv(GL_TEXTURE_BINDING_2D, &prevTexture);
+
+                    // Blank texture for FOV tangent.
+                    glGenTextures(1, &m_blankTexture);
+                    glBindTexture(GL_TEXTURE_2D, m_blankTexture);
+                    std::vector<GLbyte> blank(32*32*4, 0);
+                    glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8_ALPHA8, 32, 32, 0, GL_RGBA, GL_BYTE, blank.data());
+
+
+                    // Restore previous texture
+                    glBindTexture(GL_TEXTURE_2D, prevTexture);
+                }
+            }
+
+            void cleanupCompositionResources(graphics::IGraphicsDevice* device) override {
+                if (m_linearClampSampler > 0) {
+                    gl.DeleteSamplers(1, &m_linearClampSampler);
+                    m_linearClampSampler = 0;
+                }
+
+                if (m_projectionVert > 0) {
                     gl.DeleteShader(m_projectionVert);
                     m_projectionVert = 0;
+                }
+
+                if (m_projectionFrag > 0) {
                     gl.DeleteShader(m_projectionFrag);
                     m_projectionFrag = 0;
+                }
+
+                if (m_projectionProg > 0) {
+                    gl.DeleteProgram(m_projectionProg);
+                    m_projectionProg = 0;
+                }
+
+                if (m_blankTexture > 0) {
+                    glDeleteTextures(1, &m_blankTexture);
+                    m_blankTexture = 0;
                 }
             }
 
@@ -2339,16 +2536,305 @@ namespace openxr_api_layer {
                 return new OpenGLSwapchain;
             }
 
+            void composite(graphics::IGraphicsDevice* device, uint32_t viewIndex,
+                           Swapchain* _swapchainForStereoView,
+                           const XrCompositionLayerProjectionView& focusView,
+                           Swapchain* _swapchainForFocusView,
+                           uint32_t acquiredImageIndex,
+                           XrCompositionLayerFlags layerFlags) override {
+                // Get stereo and focus textures
+                TraceLocalActivity(local);
+                TraceLoggingWriteStart(local, "xrEndFrame_Composite");
+
+                auto* swapchainForStereoView = static_cast<OpenGLSwapchain*>(_swapchainForStereoView);
+                auto* swapchainForFocusView = static_cast<OpenGLSwapchain*>(_swapchainForFocusView);
+                GLuint sourceImage = 0;
+                if (m_layer->m_useQuadViews) {
+                    sourceImage = swapchainForStereoView->images[swapchainForStereoView->lastReleasedIndex];
+                }
+                GLuint sourceFocusImage = swapchainForFocusView->images[swapchainForFocusView->lastReleasedIndex];
+
+#if 0
+                // Copy to a flat texture for sampling.
+                {
+                    TraceLocalActivity(local);
+                    TraceLoggingWriteStart(local, "xrEndFrame_Flatten");
+
+                    const auto flattenSourceImage = [&](ID3D11Texture2D* image,
+                                                        const XrCompositionLayerProjectionView& view,
+                                                        Swapchain& swapchain,
+                                                        uint32_t startSlot) {
+                        D3D11_TEXTURE2D_DESC desc{};
+                        if (swapchain.flatImage[startSlot + viewIndex]) {
+                            swapchain.flatImage[startSlot + viewIndex]->GetDesc(&desc);
+                        }
+                        if (!swapchain.flatImage[startSlot + viewIndex] ||
+                            desc.Width != view.subImage.imageRect.extent.width ||
+                            desc.Height != view.subImage.imageRect.extent.height) {
+                            desc = {};
+                            desc.ArraySize = 1;
+                            desc.Width = view.subImage.imageRect.extent.width;
+                            desc.Height = view.subImage.imageRect.extent.height;
+                            desc.Format = (DXGI_FORMAT)swapchain.createInfo.format;
+                            desc.MipLevels = 1;
+                            desc.SampleDesc.Count = 1;
+                            desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+                            CHECK_HRCMD(m_applicationDevice->CreateTexture2D(
+                                &desc, nullptr, swapchain.flatImage[startSlot + viewIndex].ReleaseAndGetAddressOf()));
+                        }
+                        D3D11_BOX box{};
+                        box.left = view.subImage.imageRect.offset.x;
+                        box.top = view.subImage.imageRect.offset.y;
+                        box.right = box.left + view.subImage.imageRect.extent.width;
+                        box.bottom = box.top + view.subImage.imageRect.extent.height;
+                        box.back = 1;
+                        m_renderContext->CopySubresourceRegion(swapchain.flatImage[startSlot + viewIndex].Get(),
+                                                               0,
+                                                               0,
+                                                               0,
+                                                               0,
+                                                               image,
+                                                               view.subImage.imageArrayIndex,
+                                                               &box);
+                    };
+                    // TODO: We could reduce overhead by avoiding these 2 copies and modifying sampling in our shader to
+                    // consider the offset.
+                    if (m_useQuadViews) {
+                        flattenSourceImage(sourceImage, stereoView, swapchainForStereoView, 0);
+                    }
+                    flattenSourceImage(sourceFocusImage, focusView, swapchainForFocusView, xr::StereoView::Count);
+
+                    TraceLoggingWriteStop(local, "xrEndFrame_Flatten");
+                }
+
+                // Sharpen if needed.
+                if (m_sharpenFocusView) {
+                    TraceLocalActivity(local);
+                    TraceLoggingWriteStart(local, "xrEndFrame_Sharpen");
+
+                    {
+                        D3D11_TEXTURE2D_DESC desc{};
+                        if (swapchainForFocusView->sharpenedImage[viewIndex]) {
+                            swapchainForFocusView->sharpenedImage[viewIndex]->GetDesc(&desc);
+                        }
+                        if (!swapchainForFocusView->sharpenedImage[viewIndex] ||
+                            desc.Width != focusView.subImage.imageRect.extent.width ||
+                            desc.Height != focusView.subImage.imageRect.extent.height) {
+                            desc = {};
+                            desc.ArraySize = 1;
+                            desc.Width = focusView.subImage.imageRect.extent.width;
+                            desc.Height = focusView.subImage.imageRect.extent.height;
+                            desc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+                            desc.MipLevels = 1;
+                            desc.SampleDesc.Count = 1;
+                            desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS;
+                            CHECK_HRCMD(m_applicationDevice->CreateTexture2D(
+                                &desc, nullptr, swapchainForFocusView->sharpenedImage[viewIndex].ReleaseAndGetAddressOf()));
+                        }
+                    }
+
+                    // Create ephemeral SRV/UAV.
+                    ComPtr<ID3D11ShaderResourceView> srv;
+                    {
+                        D3D11_SHADER_RESOURCE_VIEW_DESC desc{};
+                        desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+                        desc.Format = (DXGI_FORMAT)swapchainForFocusView->createInfo.format;
+                        desc.Texture2D.MipLevels = 1;
+                        CHECK_HRCMD(m_applicationDevice->CreateShaderResourceView(
+                            swapchainForFocusView->flatImage[xr::StereoView::Count + viewIndex].Get(),
+                            &desc,
+                            srv.ReleaseAndGetAddressOf()));
+                    }
+                    ComPtr<ID3D11UnorderedAccessView> uav;
+                    {
+                        D3D11_UNORDERED_ACCESS_VIEW_DESC desc{};
+                        desc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
+                        desc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+                        CHECK_HRCMD(m_applicationDevice->CreateUnorderedAccessView(
+                            swapchainForFocusView->sharpenedImage[viewIndex].Get(), &desc, uav.ReleaseAndGetAddressOf()));
+                    }
+
+                    // Set up the shader.
+                    SharpeningCSConstants sharpening{};
+                    CasSetup(sharpening.Const0,
+                             sharpening.Const1,
+                             std::clamp(m_sharpenFocusView, 0.f, 1.f),
+                             (AF1)focusView.subImage.imageRect.extent.width,
+                             (AF1)focusView.subImage.imageRect.extent.height,
+                             (AF1)focusView.subImage.imageRect.extent.width,
+                             (AF1)focusView.subImage.imageRect.extent.height);
+                    {
+                        D3D11_MAPPED_SUBRESOURCE mappedResources;
+                        CHECK_HRCMD(m_renderContext->Map(
+                            m_sharpeningCSConstants.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResources));
+                        memcpy(mappedResources.pData, &sharpening, sizeof(sharpening));
+                        m_renderContext->Unmap(m_sharpeningCSConstants.Get(), 0);
+                    }
+
+                    m_renderContext->CSSetConstantBuffers(0, 1, m_sharpeningCSConstants.GetAddressOf());
+                    m_renderContext->CSSetShaderResources(0, 1, srv.GetAddressOf());
+                    m_renderContext->CSSetUnorderedAccessViews(0, 1, uav.GetAddressOf(), nullptr);
+                    m_renderContext->CSSetShader(m_sharpeningCS.Get(), nullptr, 0);
+
+                    // This value is the image region dim that each thread group of the CAS shader operates on
+                    static const int threadGroupWorkRegionDim = 16;
+                    int dispatchX = (focusView.subImage.imageRect.extent.width + (threadGroupWorkRegionDim - 1)) /
+                                    threadGroupWorkRegionDim;
+                    int dispatchY = (focusView.subImage.imageRect.extent.height + (threadGroupWorkRegionDim - 1)) /
+                                    threadGroupWorkRegionDim;
+                    m_renderContext->Dispatch((UINT)dispatchX, (UINT)dispatchY, 1);
+
+                    // Unbind the resources used below to avoid D3D validation errors.
+                    ID3D11UnorderedAccessView* nullUAV[] = {nullptr};
+                    m_renderContext->CSSetUnorderedAccessViews(0, 1, nullUAV, nullptr);
+
+                    TraceLoggingWriteStop(local, "xrEndFrame_Sharpen");
+                }
+#endif
+
+                GLuint textures[2];
+                if (m_layer->m_useQuadViews) {
+                    textures[0] = sourceImage;
+                    //textures[0] = swapchainForStereoView.flatImage[viewIndex];
+                } else {
+                    textures[0] = m_blankTexture;
+                }
+                // FIXME sharpening disabled
+                if (0 && m_layer->m_sharpenFocusView) {
+                    textures[1] = swapchainForFocusView->sharpenedImage[viewIndex];
+                } else {
+                    textures[1] = sourceFocusImage;
+                    //textures[1] = swapchainForFocusView->flatImage[xr::StereoView::Count + viewIndex]
+                }
+                // FIXME subimage!
+
+                // Save current FBO
+                GLint prevReadFBO, prevDrawFBO;
+                glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &prevReadFBO);
+                glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &prevDrawFBO);
+
+                // Bind FBO for the destination
+                if (swapchainForStereoView->bindFullFovFBO(this, viewIndex, acquiredImageIndex)) {
+                    // Save current program
+                    GLint prevProg;
+                    glGetIntegerv(GL_CURRENT_PROGRAM, &prevProg);
+                    gl.UseProgram(m_projectionProg);
+
+                    // Compute the projection.
+                    {
+                        const glm::mat4 baseLayerViewProjection =
+                            ComposeProjectionMatrix(m_layer->m_cachedEyeFov[viewIndex], NearFar{0.1f, 20.f});
+                        const glm::mat4 layerViewProjection =
+                            ComposeProjectionMatrix(focusView.fov, NearFar{0.1f, 20.f});
+
+                        // FIXME double check, is inverseTransposeappropriate for
+                        // projection matrices?
+                        auto focusProjection = glm::inverseTranspose(baseLayerViewProjection) * layerViewProjection;
+                        gl.UniformMatrix4fv(m_focusProjectionUniform, 1, GL_FALSE, &focusProjection[0][0]);
+                    }
+                    gl.Uniform1f(m_smoothingAreaUniform, m_layer->m_useQuadViews ? m_layer->m_smoothenFocusViewEdges : 0);
+                    gl.Uniform1i(m_ignoreAlphaUniform, !(layerFlags & XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT));
+                    gl.Uniform1i(m_isUnpremultipliedAlphaUniform, !!(layerFlags & XR_COMPOSITION_LAYER_UNPREMULTIPLIED_ALPHA_BIT));
+                    gl.Uniform1i(m_debugFocusViewUniform, m_layer->m_debugFocusView);
+                    gl.Uniform2f(m_eyeGazeUniform,
+                                  (uint32_t)(m_layer->m_fullFovResolution.width * (m_layer->m_eyeGaze[viewIndex].x + 1.f) / 2.f),
+                                  (uint32_t)(m_layer->m_fullFovResolution.height * (1.f - m_layer->m_eyeGaze[viewIndex].y) / 2.f));
+                    gl.Uniform1i(m_sourceStereoTextureUniform, 0);
+                    gl.Uniform1i(m_sourceFocusTextureUniform, 1);
+
+                    // Save active texture unit
+                    GLint prevActiveTexture;
+                    glGetIntegerv(GL_ACTIVE_TEXTURE, &prevActiveTexture);
+
+                    // Bind textures and sampler (saving old state)
+                    GLint prevTexture[2];
+                    GLint prevSampler[2];
+                    for (unsigned int i = 0; i < 2; ++i) {
+                        gl.ActiveTexture(GL_TEXTURE0 + i);
+                        glGetIntegerv(GL_TEXTURE_BINDING_2D, &prevTexture[i]);
+                        glGetIntegerv(GL_SAMPLER_BINDING, &prevSampler[i]);
+                        glBindTexture(GL_TEXTURE_2D, textures[i]);
+                        gl.BindSampler(i, m_linearClampSampler);
+                    }
+
+                    // FIXME save polygon mode, front face, and viewport
+                    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+                    glFrontFace(GL_CCW);
+                    glViewport(0, 0,
+                               m_layer->m_fullFovResolution.width,
+                               m_layer->m_fullFovResolution.height);
+                    // FIXME need to disable vertex arrays?
+                    glDrawArrays(GL_TRIANGLES, 0, 3);
+
+                    // Restore textures and samplers
+                    for (unsigned int i = 0; i < 2; ++i) {
+                        gl.ActiveTexture(GL_TEXTURE0 + i);
+                        glBindTexture(GL_TEXTURE_2D, prevTexture[i]);
+                        gl.BindSampler(i, prevSampler[i]);
+                    }
+
+                    // Restore active texture unit, program, FBOs
+                    gl.ActiveTexture(prevActiveTexture);
+                    gl.UseProgram(prevProg);
+                }
+
+                // Restore FBO
+                gl.BindFramebuffer(GL_READ_FRAMEBUFFER, prevReadFBO);
+                gl.BindFramebuffer(GL_DRAW_FRAMEBUFFER, prevDrawFBO);
+
+                TraceLoggingWriteStop(local, "xrEndFrame_Composite");
+            }
+
+            // Shaders
             GLuint m_projectionVert{0};
             GLuint m_projectionFrag{0};
+
+            // Programs
             GLuint m_projectionProg{0};
+
+            // Uniform locations
+            // mat4 focusProjection
+            GLint m_focusProjectionUniform{-1};
+            // float smoothingArea
+            GLint m_smoothingAreaUniform{-1};
+            // bool ignoreAlpha
+            GLint m_ignoreAlphaUniform{-1};
+            // bool isUnpremultipliedAlpha
+            GLint m_isUnpremultipliedAlphaUniform{-1};
+            // bool debugFocusView
+            GLint m_debugFocusViewUniform{-1};
+            // vec2 eyeGaze
+            GLint m_eyeGazeUniform{-1};
+            // sampler2D sourceStereoTexture
+            GLint m_sourceStereoTextureUniform{-1};
+            // sampler2D sourceFocusTexture
+            GLint m_sourceFocusTextureUniform{-1};
+
+            // Samplers
+            GLuint m_linearClampSampler{0};
+            // Textures
+            GLuint m_blankTexture{0};
         };
 #endif
 
 #ifdef XR_USE_GRAPHICS_API_VULKAN
         struct VulkanApiHelper : TApiHelper<graphics::Vulkan> {
+            void initializeCompositionResources(graphics::IGraphicsDevice* device) override {
+            }
+
+            void cleanupCompositionResources(graphics::IGraphicsDevice* device) override {
+            }
+
             Swapchain* createSwapchain() override {
                 return new VulkanSwapchain;
+            }
+
+            void composite(graphics::IGraphicsDevice* device, uint32_t viewIndex,
+                           Swapchain* swapchainForStereoView,
+                           const XrCompositionLayerProjectionView& focusView,
+                           Swapchain* swapchainForFocusView,
+                           uint32_t acquiredImageIndex,
+                           XrCompositionLayerFlags layerFlags) override {
             }
         };
 #endif
@@ -2437,6 +2923,280 @@ namespace openxr_api_layer {
                     CHECK_HRCMD(m_applicationDevice->CreateShaderResourceView(
                         m_blankTexture.Get(), &desc, m_srvBlankTexture.ReleaseAndGetAddressOf()));
                 }
+            }
+
+            void cleanupCompositionResources(graphics::IGraphicsDevice* device) override {
+            }
+
+            Swapchain* createSwapchain() override {
+                return new D3D11Swapchain;
+            }
+
+            void composite(graphics::IGraphicsDevice* device, uint32_t viewIndex,
+                           Swapchain* _swapchainForStereoView,
+                           const XrCompositionLayerProjectionView& focusView,
+                           Swapchain* _swapchainForFocusView,
+                           uint32_t acquiredImageIndex,
+                           XrCompositionLayerFlags layerFlags) override {
+
+                auto* swapchainForStereoView = static_cast<D3D11Swapchain*>(_swapchainForStereoView);
+                auto* swapchainForFocusView = static_cast<D3D11Swapchain*>(_swapchainForFocusView);
+                ID3D11Texture2D* sourceImage = nullptr;
+                ID3D11Texture2D* sourceFocusImage;
+                ID3D11Texture2D* destinationImage;
+
+                if (m_layer->m_useQuadViews) {
+                    sourceImage = swapchainForStereoView->images[swapchainForStereoView->lastReleasedIndex];
+                }
+                sourceFocusImage = swapchainForFocusView->images[swapchainForFocusView->lastReleasedIndex];
+                destinationImage = swapchainForStereoView->fullFovSwapchainImages[viewIndex][acquiredImageIndex];
+
+                // Copy to a flat texture for sampling.
+                {
+                    TraceLocalActivity(local);
+                    TraceLoggingWriteStart(local, "xrEndFrame_Flatten");
+
+                    const auto flattenSourceImage = [&](ID3D11Texture2D* image,
+                                                        const XrCompositionLayerProjectionView& view,
+                                                        Swapchain& swapchain,
+                                                        uint32_t startSlot) {
+                        D3D11_TEXTURE2D_DESC desc{};
+                        if (swapchain.flatImage[startSlot + viewIndex]) {
+                            swapchain.flatImage[startSlot + viewIndex]->GetDesc(&desc);
+                        }
+                        if (!swapchain.flatImage[startSlot + viewIndex] ||
+                            desc.Width != view.subImage.imageRect.extent.width ||
+                            desc.Height != view.subImage.imageRect.extent.height) {
+                            desc = {};
+                            desc.ArraySize = 1;
+                            desc.Width = view.subImage.imageRect.extent.width;
+                            desc.Height = view.subImage.imageRect.extent.height;
+                            desc.Format = (DXGI_FORMAT)swapchain.createInfo.format;
+                            desc.MipLevels = 1;
+                            desc.SampleDesc.Count = 1;
+                            desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+                            CHECK_HRCMD(m_applicationDevice->CreateTexture2D(
+                                &desc, nullptr, swapchain.flatImage[startSlot + viewIndex].ReleaseAndGetAddressOf()));
+                        }
+                        D3D11_BOX box{};
+                        box.left = view.subImage.imageRect.offset.x;
+                        box.top = view.subImage.imageRect.offset.y;
+                        box.right = box.left + view.subImage.imageRect.extent.width;
+                        box.bottom = box.top + view.subImage.imageRect.extent.height;
+                        box.back = 1;
+                        m_renderContext->CopySubresourceRegion(swapchain.flatImage[startSlot + viewIndex].Get(),
+                                                               0,
+                                                               0,
+                                                               0,
+                                                               0,
+                                                               image,
+                                                               view.subImage.imageArrayIndex,
+                                                               &box);
+                    };
+                    // TODO: We could reduce overhead by avoiding these 2 copies and modifying sampling in our shader to
+                    // consider the offset.
+                    if (m_useQuadViews) {
+                        flattenSourceImage(sourceImage, stereoView, swapchainForStereoView, 0);
+                    }
+                    flattenSourceImage(sourceFocusImage, focusView, swapchainForFocusView, xr::StereoView::Count);
+
+                    TraceLoggingWriteStop(local, "xrEndFrame_Flatten");
+                }
+
+                // Sharpen if needed.
+                if (m_sharpenFocusView) {
+                    TraceLocalActivity(local);
+                    TraceLoggingWriteStart(local, "xrEndFrame_Sharpen");
+
+                    {
+                        D3D11_TEXTURE2D_DESC desc{};
+                        if (swapchainForFocusView->sharpenedImage[viewIndex]) {
+                            swapchainForFocusView->sharpenedImage[viewIndex]->GetDesc(&desc);
+                        }
+                        if (!swapchainForFocusView->sharpenedImage[viewIndex] ||
+                            desc.Width != focusView.subImage.imageRect.extent.width ||
+                            desc.Height != focusView.subImage.imageRect.extent.height) {
+                            desc = {};
+                            desc.ArraySize = 1;
+                            desc.Width = focusView.subImage.imageRect.extent.width;
+                            desc.Height = focusView.subImage.imageRect.extent.height;
+                            desc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+                            desc.MipLevels = 1;
+                            desc.SampleDesc.Count = 1;
+                            desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS;
+                            CHECK_HRCMD(m_applicationDevice->CreateTexture2D(
+                                &desc, nullptr, swapchainForFocusView->sharpenedImage[viewIndex].ReleaseAndGetAddressOf()));
+                        }
+                    }
+
+                    // Create ephemeral SRV/UAV.
+                    ComPtr<ID3D11ShaderResourceView> srv;
+                    {
+                        D3D11_SHADER_RESOURCE_VIEW_DESC desc{};
+                        desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+                        desc.Format = (DXGI_FORMAT)swapchainForFocusView->createInfo.format;
+                        desc.Texture2D.MipLevels = 1;
+                        CHECK_HRCMD(m_applicationDevice->CreateShaderResourceView(
+                            swapchainForFocusView->flatImage[xr::StereoView::Count + viewIndex].Get(),
+                            &desc,
+                            srv.ReleaseAndGetAddressOf()));
+                    }
+                    ComPtr<ID3D11UnorderedAccessView> uav;
+                    {
+                        D3D11_UNORDERED_ACCESS_VIEW_DESC desc{};
+                        desc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
+                        desc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+                        CHECK_HRCMD(m_applicationDevice->CreateUnorderedAccessView(
+                            swapchainForFocusView->sharpenedImage[viewIndex].Get(), &desc, uav.ReleaseAndGetAddressOf()));
+                    }
+
+                    // Set up the shader.
+                    SharpeningCSConstants sharpening{};
+                    CasSetup(sharpening.Const0,
+                             sharpening.Const1,
+                             std::clamp(m_sharpenFocusView, 0.f, 1.f),
+                             (AF1)focusView.subImage.imageRect.extent.width,
+                             (AF1)focusView.subImage.imageRect.extent.height,
+                             (AF1)focusView.subImage.imageRect.extent.width,
+                             (AF1)focusView.subImage.imageRect.extent.height);
+                    {
+                        D3D11_MAPPED_SUBRESOURCE mappedResources;
+                        CHECK_HRCMD(m_renderContext->Map(
+                            m_sharpeningCSConstants.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResources));
+                        memcpy(mappedResources.pData, &sharpening, sizeof(sharpening));
+                        m_renderContext->Unmap(m_sharpeningCSConstants.Get(), 0);
+                    }
+
+                    m_renderContext->CSSetConstantBuffers(0, 1, m_sharpeningCSConstants.GetAddressOf());
+                    m_renderContext->CSSetShaderResources(0, 1, srv.GetAddressOf());
+                    m_renderContext->CSSetUnorderedAccessViews(0, 1, uav.GetAddressOf(), nullptr);
+                    m_renderContext->CSSetShader(m_sharpeningCS.Get(), nullptr, 0);
+
+                    // This value is the image region dim that each thread group of the CAS shader operates on
+                    static const int threadGroupWorkRegionDim = 16;
+                    int dispatchX = (focusView.subImage.imageRect.extent.width + (threadGroupWorkRegionDim - 1)) /
+                                    threadGroupWorkRegionDim;
+                    int dispatchY = (focusView.subImage.imageRect.extent.height + (threadGroupWorkRegionDim - 1)) /
+                                    threadGroupWorkRegionDim;
+                    m_renderContext->Dispatch((UINT)dispatchX, (UINT)dispatchY, 1);
+
+                    // Unbind the resources used below to avoid D3D validation errors.
+                    ID3D11UnorderedAccessView* nullUAV[] = {nullptr};
+                    m_renderContext->CSSetUnorderedAccessViews(0, 1, nullUAV, nullptr);
+
+                    TraceLoggingWriteStop(local, "xrEndFrame_Sharpen");
+                }
+
+                {
+                    TraceLocalActivity(local);
+                    TraceLoggingWriteStart(local, "xrEndFrame_Composite");
+
+
+                    // Create ephemeral SRV/RTV.
+                    ComPtr<ID3D11ShaderResourceView> srvForStereoView;
+                    if (m_useQuadViews) {
+                        D3D11_SHADER_RESOURCE_VIEW_DESC desc{};
+                        desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+                        desc.Format = (DXGI_FORMAT)swapchainForStereoView.createInfo.format;
+                        desc.Texture2D.MipLevels = 1;
+                        CHECK_HRCMD(
+                            m_applicationDevice->CreateShaderResourceView(swapchainForStereoView.flatImage[viewIndex].Get(),
+                                                                          &desc,
+                                                                          srvForStereoView.ReleaseAndGetAddressOf()));
+                    } else {
+                        srvForStereoView = m_srvBlankTexture;
+                    }
+                    ComPtr<ID3D11ShaderResourceView> srvForFocusView;
+                    {
+                        D3D11_SHADER_RESOURCE_VIEW_DESC desc{};
+                        desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+                        desc.Format = m_sharpenFocusView ? DXGI_FORMAT_R16G16B16A16_FLOAT
+                                                         : (DXGI_FORMAT)swapchainForFocusView->createInfo.format;
+                        desc.Texture2D.MipLevels = 1;
+                        CHECK_HRCMD(m_applicationDevice->CreateShaderResourceView(
+                            m_sharpenFocusView ? swapchainForFocusView->sharpenedImage[viewIndex].Get()
+                                               : swapchainForFocusView->flatImage[xr::StereoView::Count + viewIndex].Get(),
+                            &desc,
+                            srvForFocusView.ReleaseAndGetAddressOf()));
+                    }
+                    ComPtr<ID3D11RenderTargetView> rtv;
+                    {
+                        D3D11_RENDER_TARGET_VIEW_DESC desc{};
+                        desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+                        desc.Format = (DXGI_FORMAT)swapchainForStereoView.createInfo.format;
+                        CHECK_HRCMD(m_applicationDevice->CreateRenderTargetView(
+                            destinationImage, &desc, rtv.ReleaseAndGetAddressOf()));
+                    }
+
+                    // Compute the projection.
+                    ProjectionVSConstants projection;
+                    {
+                        const DirectX::XMMATRIX baseLayerViewProjection =
+                            ComposeProjectionMatrix(m_cachedEyeFov[viewIndex], NearFar{0.1f, 20.f});
+                        const DirectX::XMMATRIX layerViewProjection =
+                            ComposeProjectionMatrix(focusView.fov, NearFar{0.1f, 20.f});
+
+                        DirectX::XMStoreFloat4x4(
+                            &projection.focusProjection,
+                            DirectX::XMMatrixTranspose(DirectX::XMMatrixInverse(nullptr, baseLayerViewProjection) *
+                                                       layerViewProjection));
+                    }
+                    {
+                        D3D11_MAPPED_SUBRESOURCE mappedResources;
+                        CHECK_HRCMD(m_renderContext->Map(
+                            m_projectionVSConstants.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResources));
+                        memcpy(mappedResources.pData, &projection, sizeof(projection));
+                        m_renderContext->Unmap(m_projectionVSConstants.Get(), 0);
+                    }
+
+                    ProjectionPSConstants drawing{};
+                    drawing.smoothingArea = m_useQuadViews ? m_smoothenFocusViewEdges : 0;
+                    drawing.ignoreAlpha = ~(layerFlags & XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT);
+                    drawing.isUnpremultipliedAlpha = layerFlags & XR_COMPOSITION_LAYER_UNPREMULTIPLIED_ALPHA_BIT;
+                    drawing.debugFocusView = m_debugFocusView;
+                    {
+                        D3D11_MAPPED_SUBRESOURCE mappedResources;
+                        CHECK_HRCMD(m_renderContext->Map(
+                            m_projectionPSConstants.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResources));
+                        memcpy(mappedResources.pData, &drawing, sizeof(drawing));
+                        m_renderContext->Unmap(m_projectionPSConstants.Get(), 0);
+                    }
+
+                    // Dispatch the composition shader.
+                    m_renderContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+                    m_renderContext->OMSetRenderTargets(1, rtv.GetAddressOf(), nullptr);
+                    m_renderContext->RSSetState(m_noDepthRasterizer.Get());
+                    D3D11_VIEWPORT viewport{};
+                    viewport.Width = (float)m_fullFovResolution.width;
+                    viewport.Height = (float)m_fullFovResolution.height;
+                    viewport.MaxDepth = 1.f;
+                    m_renderContext->RSSetViewports(1, &viewport);
+                    m_renderContext->VSSetConstantBuffers(0, 1, m_projectionVSConstants.GetAddressOf());
+                    m_renderContext->VSSetShader(m_projectionVS.Get(), nullptr, 0);
+                    m_renderContext->PSSetConstantBuffers(0, 1, m_projectionPSConstants.GetAddressOf());
+                    m_renderContext->PSSetSamplers(0, 1, m_linearClampSampler.GetAddressOf());
+                    ID3D11ShaderResourceView* srvs[] = {srvForStereoView.Get(), srvForFocusView.Get()};
+                    m_renderContext->PSSetShaderResources(0, 2, srvs);
+                    m_renderContext->PSSetShader(m_projectionPS.Get(), nullptr, 0);
+                    m_renderContext->Draw(3, 0);
+
+                    if (m_debugEyeGaze) {
+                        XrOffset2Di eyeGaze; // Screen coordinates.
+                        eyeGaze.x = (uint32_t)(m_fullFovResolution.width * (m_eyeGaze[viewIndex].x + 1.f) / 2.f);
+                        eyeGaze.y = (uint32_t)(m_fullFovResolution.height * (1.f - m_eyeGaze[viewIndex].y) / 2.f);
+
+                        const float color[] = {0.5f, 0, 0.5f, 1};
+                        D3D11_RECT rect;
+                        rect.left = eyeGaze.x - 10;
+                        rect.right = eyeGaze.x + 10;
+                        rect.top = eyeGaze.y - 10;
+                        rect.bottom = eyeGaze.y + 10;
+                        m_renderContext->ClearView(rtv.Get(), color, &rect, 1);
+                    }
+
+                    TraceLoggingWriteStop(local, "xrEndFrame_Composite");
+                }
+
             }
 
             ComPtr<ID3D11Device5> m_applicationDevice;
@@ -2641,11 +3401,7 @@ namespace openxr_api_layer {
                 m_compositionInitialized = true;
             }
 
-#ifdef _WIN32
-            ID3D11Texture2D* sourceImage = nullptr;
-            ID3D11Texture2D* sourceFocusImage;
-            ID3D11Texture2D* destinationImage;
-#endif
+            uint32_t acquiredImageIndex;
             {
                 TraceLocalActivity(local);
                 TraceLoggingWriteStart(local, "xrEndFrame_GatherInputOutput");
@@ -2653,21 +3409,14 @@ namespace openxr_api_layer {
                 // Grab the input textures.
                 if (m_useQuadViews) {
                     swapchainForStereoView->populateImagesCache(this, stereoView.subImage.swapchain);
-#ifdef _WIN32
-                    sourceImage = swapchainForStereoView->images[swapchainForStereoView->lastReleasedIndex];
-#endif
                 }
                 swapchainForFocusView->populateImagesCache(this, focusView.subImage.swapchain);
-#ifdef _WIN32
-                sourceFocusImage = swapchainForFocusView->images[swapchainForFocusView->lastReleasedIndex];
-#endif
 
                 // Grab the output texture.
                 {
                     TraceLoggingWriteTagged(local,
                                             "xrEndFrame_GatherInputOutput_AcquireOutput",
                                             TLXArg(swapchainForStereoView->fullFovSwapchain[viewIndex], "Swapchain"));
-                    uint32_t acquiredImageIndex;
                     CHECK_XRCMD(OpenXrApi::xrAcquireSwapchainImage(
                         swapchainForStereoView->fullFovSwapchain[viewIndex], nullptr, &acquiredImageIndex));
                     XrSwapchainImageWaitInfo waitInfo{XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO};
@@ -2679,9 +3428,6 @@ namespace openxr_api_layer {
                         OpenXrApi::xrWaitSwapchainImage(swapchainForStereoView->fullFovSwapchain[viewIndex], &waitInfo));
 
                     swapchainForStereoView->populateFullFovImagesCache(this, viewIndex);
-#ifdef _WIN32
-                    destinationImage = swapchainForStereoView->fullFovSwapchainImages[viewIndex][acquiredImageIndex];
-#endif
                 }
 
                 TraceLoggingWriteStop(local, "xrEndFrame_GatherInputOutput");
@@ -2696,252 +3442,12 @@ namespace openxr_api_layer {
                 m_compositionTimer[m_compositionTimerIndex]->start();
             }
 
-#ifdef _WIN32
-            // Copy to a flat texture for sampling.
-            {
-                TraceLocalActivity(local);
-                TraceLoggingWriteStart(local, "xrEndFrame_Flatten");
-
-                const auto flattenSourceImage = [&](ID3D11Texture2D* image,
-                                                    const XrCompositionLayerProjectionView& view,
-                                                    Swapchain& swapchain,
-                                                    uint32_t startSlot) {
-                    D3D11_TEXTURE2D_DESC desc{};
-                    if (swapchain.flatImage[startSlot + viewIndex]) {
-                        swapchain.flatImage[startSlot + viewIndex]->GetDesc(&desc);
-                    }
-                    if (!swapchain.flatImage[startSlot + viewIndex] ||
-                        desc.Width != view.subImage.imageRect.extent.width ||
-                        desc.Height != view.subImage.imageRect.extent.height) {
-                        desc = {};
-                        desc.ArraySize = 1;
-                        desc.Width = view.subImage.imageRect.extent.width;
-                        desc.Height = view.subImage.imageRect.extent.height;
-                        desc.Format = (DXGI_FORMAT)swapchain.createInfo.format;
-                        desc.MipLevels = 1;
-                        desc.SampleDesc.Count = 1;
-                        desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-                        CHECK_HRCMD(m_applicationDevice->CreateTexture2D(
-                            &desc, nullptr, swapchain.flatImage[startSlot + viewIndex].ReleaseAndGetAddressOf()));
-                    }
-                    D3D11_BOX box{};
-                    box.left = view.subImage.imageRect.offset.x;
-                    box.top = view.subImage.imageRect.offset.y;
-                    box.right = box.left + view.subImage.imageRect.extent.width;
-                    box.bottom = box.top + view.subImage.imageRect.extent.height;
-                    box.back = 1;
-                    m_renderContext->CopySubresourceRegion(swapchain.flatImage[startSlot + viewIndex].Get(),
-                                                           0,
-                                                           0,
-                                                           0,
-                                                           0,
-                                                           image,
-                                                           view.subImage.imageArrayIndex,
-                                                           &box);
-                };
-                // TODO: We could reduce overhead by avoiding these 2 copies and modifying sampling in our shader to
-                // consider the offset.
-                if (m_useQuadViews) {
-                    flattenSourceImage(sourceImage, stereoView, swapchainForStereoView, 0);
-                }
-                flattenSourceImage(sourceFocusImage, focusView, swapchainForFocusView, xr::StereoView::Count);
-
-                TraceLoggingWriteStop(local, "xrEndFrame_Flatten");
-            }
-
-            // Sharpen if needed.
-            if (m_sharpenFocusView) {
-                TraceLocalActivity(local);
-                TraceLoggingWriteStart(local, "xrEndFrame_Sharpen");
-
-                {
-                    D3D11_TEXTURE2D_DESC desc{};
-                    if (swapchainForFocusView->sharpenedImage[viewIndex]) {
-                        swapchainForFocusView->sharpenedImage[viewIndex]->GetDesc(&desc);
-                    }
-                    if (!swapchainForFocusView->sharpenedImage[viewIndex] ||
-                        desc.Width != focusView.subImage.imageRect.extent.width ||
-                        desc.Height != focusView.subImage.imageRect.extent.height) {
-                        desc = {};
-                        desc.ArraySize = 1;
-                        desc.Width = focusView.subImage.imageRect.extent.width;
-                        desc.Height = focusView.subImage.imageRect.extent.height;
-                        desc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
-                        desc.MipLevels = 1;
-                        desc.SampleDesc.Count = 1;
-                        desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS;
-                        CHECK_HRCMD(m_applicationDevice->CreateTexture2D(
-                            &desc, nullptr, swapchainForFocusView->sharpenedImage[viewIndex].ReleaseAndGetAddressOf()));
-                    }
-                }
-
-                // Create ephemeral SRV/UAV.
-                ComPtr<ID3D11ShaderResourceView> srv;
-                {
-                    D3D11_SHADER_RESOURCE_VIEW_DESC desc{};
-                    desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-                    desc.Format = (DXGI_FORMAT)swapchainForFocusView->createInfo.format;
-                    desc.Texture2D.MipLevels = 1;
-                    CHECK_HRCMD(m_applicationDevice->CreateShaderResourceView(
-                        swapchainForFocusView->flatImage[xr::StereoView::Count + viewIndex].Get(),
-                        &desc,
-                        srv.ReleaseAndGetAddressOf()));
-                }
-                ComPtr<ID3D11UnorderedAccessView> uav;
-                {
-                    D3D11_UNORDERED_ACCESS_VIEW_DESC desc{};
-                    desc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
-                    desc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
-                    CHECK_HRCMD(m_applicationDevice->CreateUnorderedAccessView(
-                        swapchainForFocusView->sharpenedImage[viewIndex].Get(), &desc, uav.ReleaseAndGetAddressOf()));
-                }
-
-                // Set up the shader.
-                SharpeningCSConstants sharpening{};
-                CasSetup(sharpening.Const0,
-                         sharpening.Const1,
-                         std::clamp(m_sharpenFocusView, 0.f, 1.f),
-                         (AF1)focusView.subImage.imageRect.extent.width,
-                         (AF1)focusView.subImage.imageRect.extent.height,
-                         (AF1)focusView.subImage.imageRect.extent.width,
-                         (AF1)focusView.subImage.imageRect.extent.height);
-                {
-                    D3D11_MAPPED_SUBRESOURCE mappedResources;
-                    CHECK_HRCMD(m_renderContext->Map(
-                        m_sharpeningCSConstants.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResources));
-                    memcpy(mappedResources.pData, &sharpening, sizeof(sharpening));
-                    m_renderContext->Unmap(m_sharpeningCSConstants.Get(), 0);
-                }
-
-                m_renderContext->CSSetConstantBuffers(0, 1, m_sharpeningCSConstants.GetAddressOf());
-                m_renderContext->CSSetShaderResources(0, 1, srv.GetAddressOf());
-                m_renderContext->CSSetUnorderedAccessViews(0, 1, uav.GetAddressOf(), nullptr);
-                m_renderContext->CSSetShader(m_sharpeningCS.Get(), nullptr, 0);
-
-                // This value is the image region dim that each thread group of the CAS shader operates on
-                static const int threadGroupWorkRegionDim = 16;
-                int dispatchX = (focusView.subImage.imageRect.extent.width + (threadGroupWorkRegionDim - 1)) /
-                                threadGroupWorkRegionDim;
-                int dispatchY = (focusView.subImage.imageRect.extent.height + (threadGroupWorkRegionDim - 1)) /
-                                threadGroupWorkRegionDim;
-                m_renderContext->Dispatch((UINT)dispatchX, (UINT)dispatchY, 1);
-
-                // Unbind the resources used below to avoid D3D validation errors.
-                ID3D11UnorderedAccessView* nullUAV[] = {nullptr};
-                m_renderContext->CSSetUnorderedAccessViews(0, 1, nullUAV, nullptr);
-
-                TraceLoggingWriteStop(local, "xrEndFrame_Sharpen");
-            }
-
-            {
-                TraceLocalActivity(local);
-                TraceLoggingWriteStart(local, "xrEndFrame_Composite");
-
-                // Create ephemeral SRV/RTV.
-                ComPtr<ID3D11ShaderResourceView> srvForStereoView;
-                if (m_useQuadViews) {
-                    D3D11_SHADER_RESOURCE_VIEW_DESC desc{};
-                    desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-                    desc.Format = (DXGI_FORMAT)swapchainForStereoView.createInfo.format;
-                    desc.Texture2D.MipLevels = 1;
-                    CHECK_HRCMD(
-                        m_applicationDevice->CreateShaderResourceView(swapchainForStereoView.flatImage[viewIndex].Get(),
-                                                                      &desc,
-                                                                      srvForStereoView.ReleaseAndGetAddressOf()));
-                } else {
-                    srvForStereoView = m_srvBlankTexture;
-                }
-                ComPtr<ID3D11ShaderResourceView> srvForFocusView;
-                {
-                    D3D11_SHADER_RESOURCE_VIEW_DESC desc{};
-                    desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-                    desc.Format = m_sharpenFocusView ? DXGI_FORMAT_R16G16B16A16_FLOAT
-                                                     : (DXGI_FORMAT)swapchainForFocusView->createInfo.format;
-                    desc.Texture2D.MipLevels = 1;
-                    CHECK_HRCMD(m_applicationDevice->CreateShaderResourceView(
-                        m_sharpenFocusView ? swapchainForFocusView->sharpenedImage[viewIndex].Get()
-                                           : swapchainForFocusView->flatImage[xr::StereoView::Count + viewIndex].Get(),
-                        &desc,
-                        srvForFocusView.ReleaseAndGetAddressOf()));
-                }
-                ComPtr<ID3D11RenderTargetView> rtv;
-                {
-                    D3D11_RENDER_TARGET_VIEW_DESC desc{};
-                    desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
-                    desc.Format = (DXGI_FORMAT)swapchainForStereoView.createInfo.format;
-                    CHECK_HRCMD(m_applicationDevice->CreateRenderTargetView(
-                        destinationImage, &desc, rtv.ReleaseAndGetAddressOf()));
-                }
-
-                // Compute the projection.
-                ProjectionVSConstants projection;
-                {
-                    const DirectX::XMMATRIX baseLayerViewProjection =
-                        ComposeProjectionMatrix(m_cachedEyeFov[viewIndex], NearFar{0.1f, 20.f});
-                    const DirectX::XMMATRIX layerViewProjection =
-                        ComposeProjectionMatrix(focusView.fov, NearFar{0.1f, 20.f});
-
-                    DirectX::XMStoreFloat4x4(
-                        &projection.focusProjection,
-                        DirectX::XMMatrixTranspose(DirectX::XMMatrixInverse(nullptr, baseLayerViewProjection) *
-                                                   layerViewProjection));
-                }
-                {
-                    D3D11_MAPPED_SUBRESOURCE mappedResources;
-                    CHECK_HRCMD(m_renderContext->Map(
-                        m_projectionVSConstants.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResources));
-                    memcpy(mappedResources.pData, &projection, sizeof(projection));
-                    m_renderContext->Unmap(m_projectionVSConstants.Get(), 0);
-                }
-
-                ProjectionPSConstants drawing{};
-                drawing.smoothingArea = m_useQuadViews ? m_smoothenFocusViewEdges : 0;
-                drawing.ignoreAlpha = ~(layerFlags & XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT);
-                drawing.isUnpremultipliedAlpha = layerFlags & XR_COMPOSITION_LAYER_UNPREMULTIPLIED_ALPHA_BIT;
-                drawing.debugFocusView = m_debugFocusView;
-                {
-                    D3D11_MAPPED_SUBRESOURCE mappedResources;
-                    CHECK_HRCMD(m_renderContext->Map(
-                        m_projectionPSConstants.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResources));
-                    memcpy(mappedResources.pData, &drawing, sizeof(drawing));
-                    m_renderContext->Unmap(m_projectionPSConstants.Get(), 0);
-                }
-
-                // Dispatch the composition shader.
-                m_renderContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
-                m_renderContext->OMSetRenderTargets(1, rtv.GetAddressOf(), nullptr);
-                m_renderContext->RSSetState(m_noDepthRasterizer.Get());
-                D3D11_VIEWPORT viewport{};
-                viewport.Width = (float)m_fullFovResolution.width;
-                viewport.Height = (float)m_fullFovResolution.height;
-                viewport.MaxDepth = 1.f;
-                m_renderContext->RSSetViewports(1, &viewport);
-                m_renderContext->VSSetConstantBuffers(0, 1, m_projectionVSConstants.GetAddressOf());
-                m_renderContext->VSSetShader(m_projectionVS.Get(), nullptr, 0);
-                m_renderContext->PSSetConstantBuffers(0, 1, m_projectionPSConstants.GetAddressOf());
-                m_renderContext->PSSetSamplers(0, 1, m_linearClampSampler.GetAddressOf());
-                ID3D11ShaderResourceView* srvs[] = {srvForStereoView.Get(), srvForFocusView.Get()};
-                m_renderContext->PSSetShaderResources(0, 2, srvs);
-                m_renderContext->PSSetShader(m_projectionPS.Get(), nullptr, 0);
-                m_renderContext->Draw(3, 0);
-
-                if (m_debugEyeGaze) {
-                    XrOffset2Di eyeGaze; // Screen coordinates.
-                    eyeGaze.x = (uint32_t)(m_fullFovResolution.width * (m_eyeGaze[viewIndex].x + 1.f) / 2.f);
-                    eyeGaze.y = (uint32_t)(m_fullFovResolution.height * (1.f - m_eyeGaze[viewIndex].y) / 2.f);
-
-                    const float color[] = {0.5f, 0, 0.5f, 1};
-                    D3D11_RECT rect;
-                    rect.left = eyeGaze.x - 10;
-                    rect.right = eyeGaze.x + 10;
-                    rect.top = eyeGaze.y - 10;
-                    rect.bottom = eyeGaze.y + 10;
-                    m_renderContext->ClearView(rtv.Get(), color, &rect, 1);
-                }
-
-                TraceLoggingWriteStop(local, "xrEndFrame_Composite");
-            }
-#endif
+            m_apiHelper->composite(m_graphicsDevice.get(), viewIndex,
+                                   swapchainForStereoView,
+                                   focusView,
+                                   swapchainForFocusView,
+                                   acquiredImageIndex,
+                                   layerFlags);
 
             if (IsTraceEnabled()) {
                 m_compositionTimer[m_compositionTimerIndex]->stop();

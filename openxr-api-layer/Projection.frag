@@ -29,6 +29,7 @@ uniform float smoothingArea;
 uniform bool ignoreAlpha;
 uniform bool isUnpremultipliedAlpha;
 uniform bool debugFocusView;
+uniform vec2 eyeGaze;
 
 uniform sampler2D sourceStereoTexture;
 uniform sampler2D sourceFocusTexture;
@@ -90,5 +91,12 @@ void main() {
     }
 
     fragColor = vec4(color.rgb, color0.a);
+
+    if (debugFocusView) {
+        vec2 delta = gl_FragCoord.xy - eyeGaze;
+        if (dot(delta, delta) < 100) {
+            fragColor = vec4(0.5f, 0.0f, 0.5f, 1.0f);
+        }
+    }
 }
 )"
