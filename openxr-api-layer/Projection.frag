@@ -74,7 +74,13 @@ void main() {
     if (smoothingArea > 0.0) {
         vec2 s = smoothstep(vec2(0, 0), vec2(smoothingArea, smoothingArea), layer1TexCoord) -
                  smoothstep(vec2(1, 1) - vec2(smoothingArea, smoothingArea), vec2(1, 1), layer1TexCoord);
-        color1.a = isInside * max(0.5, s.x * s.y);
+        float f = s.x * s.y;
+        // Glow around focus when debugging
+        if (debugFocusView && f < 0.5) {
+            color1.r = 1;
+            color1.b = 1;
+        }
+        color1.a = isInside * f;
     } else {
         color1.a = isInside;
     }
@@ -83,15 +89,11 @@ void main() {
     color1 = premultiplyAlpha(color1);
 
     // Blend the two pixels.
-    vec4 color;
-    if (!debugFocusView) {
-        color = color1 + color0 * (1 - color1.a);
-    } else {
-        color = color1;
-    }
+    vec4 color = color1 + color0 * (1 - color1.a);
 
     fragColor = vec4(color.rgb, color0.a);
 
+    // Draw dot at focus when debugging
     if (debugFocusView) {
         vec2 delta = gl_FragCoord.xy - eyeGaze;
         if (dot(delta, delta) < 100) {
