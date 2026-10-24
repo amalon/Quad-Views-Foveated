@@ -37,6 +37,10 @@
 
 #include "views.h"
 
+#ifdef __linux__
+#include <unistd.h>
+#endif
+
 #ifdef _WIN32
 #include <ProjectionVS.h>
 #include <ProjectionPS.h>
@@ -137,9 +141,23 @@ namespace openxr_api_layer {
                 } else {
                     m_applicationExecutableName = fullPath;
                 }
-#else
-                // FIXME
-                m_applicationExecutableName = "UNKNOWN_EXECUTABLE";
+#endif
+#ifdef __linux__
+                char path[256];
+                ssize_t len = readlink("/proc/self/exe", path, sizeof(path)-1);
+                if (len >= 0) {
+                    path[len] = '\0';
+                    std::string_view fullPath(path);
+                    size_t offset = fullPath.rfind('/');
+                    if (offset != std::string::npos) {
+                        m_applicationExecutableName = fullPath.substr(offset + 1);
+                    } else {
+                        m_applicationExecutableName = fullPath;
+                    }
+                } else {
+                    Log(fmt::format("Failed to readlink /proc/self/exe: {}\n",
+                                    strerror(errno)));
+                }
 #endif
             }
             Log(fmt::format(
