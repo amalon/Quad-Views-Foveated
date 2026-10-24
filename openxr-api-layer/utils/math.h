@@ -536,11 +536,10 @@ namespace xr::math {
         // b = n * (m32 - 1) / m22  => and
         // t = n * (m32 + 1) / m22  => so forth
         XrFovf fov;
-        // FIXME correct?
-        fov.angleLeft = atan2(p[0][2] - 1, p[0][0]);
-        fov.angleRight = atan2(p[0][2] + 1, p[0][0]);
-        fov.angleDown = atan2(p[1][2] - 1, p[1][1]);
-        fov.angleUp = atan2(p[1][2] + 1, p[1][1]);
+        fov.angleLeft = atan2(p[2][0] - 1, p[0][0]);
+        fov.angleRight = atan2(p[2][0] + 1, p[0][0]);
+        fov.angleDown = atan2(p[2][1] - 1, p[1][1]);
+        fov.angleUp = atan2(p[2][1] + 1, p[1][1]);
         return fov;
     }
 
