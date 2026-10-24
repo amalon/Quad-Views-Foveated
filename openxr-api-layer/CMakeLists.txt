@@ -1,12 +1,6 @@
 # Dependencies
 find_package(OpenGL REQUIRED)
 find_package(glm REQUIRED)
-#find_package(OpenXR 1.0.34 REQUIRED)
-
-#   sed -i "s/FILEVERSION .*$/FILEVERSION %major%,%minor%,%patch%,0/g" $(ProjectDir)\resource.rc
-#   sed -i "s/PRODUCTVERSION .*$/PRODUCTVERSION %major%,%minor%,%patch%,0/g" $(ProjectDir)\resource.rc
-#   sed -i "s/VALUE \"FileVersion\", \".*\"$/VALUE \"FileVersion\", \"%major%.%minor%.%patch%.0\"/g" $(ProjectDir)\resource.rc
-#   sed -i "s/VALUE \"ProductVersion\", \".*\"$/VALUE \"ProductVersion\", \"%major%.%minor%.%patch%.0\"/g" $(ProjectDir)\resource.rc
 
 find_package(Python3 3.2 REQUIRED)
 
@@ -42,93 +36,6 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_
 install(FILES       "${CMAKE_CURRENT_BINARY_DIR}/${LAYER_NAME}.json"
         DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/openxr/1/api_layers/implicit.d"
 )
-
-# Shaders
-#    <FxCompile Include="ProjectionPS.hlsl">
-#      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
-#      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Pixel</ShaderType>
-#      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Pixel</ShaderType>
-#      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
-#      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">5.0</ShaderModel>
-#      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">5.0</ShaderModel>
-#      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
-#      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
-#      <VariableName Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">g_%(Filename)</VariableName>
-#      <HeaderFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)%(Filename).h</HeaderFileOutput>
-#      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-#      </ObjectFileOutput>
-#      <VariableName Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">g_%(Filename)</VariableName>
-#      <HeaderFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(IntDir)%(Filename).h</HeaderFileOutput>
-#      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-#      </ObjectFileOutput>
-#      <VariableName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">g_%(Filename)</VariableName>
-#      <HeaderFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(IntDir)%(Filename).h</HeaderFileOutput>
-#      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-#      </ObjectFileOutput>
-#      <VariableName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">g_%(Filename)</VariableName>
-#      <HeaderFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(IntDir)%(Filename).h</HeaderFileOutput>
-#      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-#      </ObjectFileOutput>
-#    </FxCompile>
-#    <FxCompile Include="ProjectionVS.hlsl">
-#      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
-#      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Vertex</ShaderType>
-#      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Vertex</ShaderType>
-#      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
-#      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">5.0</ShaderModel>
-#      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">5.0</ShaderModel>
-#      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
-#      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
-#      <VariableName Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">g_%(Filename)</VariableName>
-#      <HeaderFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)%(Filename).h</HeaderFileOutput>
-#      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-#      </ObjectFileOutput>
-#      <VariableName Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">g_%(Filename)</VariableName>
-#      <HeaderFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(IntDir)%(Filename).h</HeaderFileOutput>
-#      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-#      </ObjectFileOutput>
-#      <VariableName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">g_%(Filename)</VariableName>
-#      <HeaderFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(IntDir)%(Filename).h</HeaderFileOutput>
-#      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-#      </ObjectFileOutput>
-#      <VariableName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">g_%(Filename)</VariableName>
-#      <HeaderFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(IntDir)%(Filename).h</HeaderFileOutput>
-#      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-#      </ObjectFileOutput>
-#    </FxCompile>
-#    <FxCompile Include="SharpeningCS.hlsl">
-#      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
-#      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
-#      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Compute</ShaderType>
-#      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">5.0</ShaderModel>
-#      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Compute</ShaderType>
-#      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">5.0</ShaderModel>
-#      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
-#      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
-#      <VariableName Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">g_%(Filename)</VariableName>
-#      <HeaderFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)%(Filename).h</HeaderFileOutput>
-#      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-#      </ObjectFileOutput>
-#      <VariableName Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">g_%(Filename)</VariableName>
-#      <HeaderFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(IntDir)%(Filename).h</HeaderFileOutput>
-#      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-#      </ObjectFileOutput>
-#      <VariableName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">g_%(Filename)</VariableName>
-#      <HeaderFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(IntDir)%(Filename).h</HeaderFileOutput>
-#      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-#      </ObjectFileOutput>
-#      <VariableName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">g_%(Filename)</VariableName>
-#      <HeaderFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(IntDir)%(Filename).h</HeaderFileOutput>
-#      <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-#      </ObjectFileOutput>
-#      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(SolutionDir)\external\FidelityFX-CAS\ffx-cas</AdditionalIncludeDirectories>
-#      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(SolutionDir)\external\FidelityFX-CAS\ffx-cas</AdditionalIncludeDirectories>
-#      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)\external\FidelityFX-CAS\ffx-cas</AdditionalIncludeDirectories>
-#      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)\external\FidelityFX-CAS\ffx-cas</AdditionalIncludeDirectories>
-#      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">CAS_SAMPLE_FP16=0;CAS_SAMPLE_SHARPEN_ONLY=1;WIDTH=64;HEIGHT=1;DEPTH=1</PreprocessorDefinitions>
-#      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">CAS_SAMPLE_FP16=0;CAS_SAMPLE_SHARPEN_ONLY=1;WIDTH=64;HEIGHT=1;DEPTH=1</PreprocessorDefinitions>
-#      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">CAS_SAMPLE_FP16=0;CAS_SAMPLE_SHARPEN_ONLY=1;WIDTH=64;HEIGHT=1;DEPTH=1</PreprocessorDefinitions>
-#      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">CAS_SAMPLE_FP16=0;CAS_SAMPLE_SHARPEN_ONLY=1;WIDTH=64;HEIGHT=1;DEPTH=1</PreprocessorDefinitions>
 
 # Source files
 set(XrApiLayer_quad_views_foveated_SRCS
@@ -188,8 +95,6 @@ target_include_directories(XrApiLayer_quad_views_foveated
         ${PROJECT_SOURCE_DIR}/external/OpenXR-SDK/include
         ${PROJECT_SOURCE_DIR}/external/OpenXR-SDK/src/common
         ${PROJECT_SOURCE_DIR}/external/OpenXR-MixedReality/shared/XrUtility
-        #${PROJECT_SOURCE_DIR}/external/OpenXR-MixedReality/shared/SampleShared
-        #${PROJECT_SOURCE_DIR}/external/OpenXR-MixedReality/shared/ext/DirectXMath/Inc
         ${PROJECT_SOURCE_DIR}/external/FidelityFX-CAS/ffx-cas
 )
 
