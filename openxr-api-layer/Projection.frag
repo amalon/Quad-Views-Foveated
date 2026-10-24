@@ -56,7 +56,7 @@ void main() {
     vec4 color0 = texture(sourceStereoTexture, texcoord);
 
     vec2 layer1ProjectedCoordNdc = projectedFocusCoord.xy / projectedFocusCoord.z;
-    vec2 layer1TexCoord = layer1ProjectedCoordNdc * vec2(0.5f, -0.5f) + 0.5f;
+    vec2 layer1TexCoord = layer1ProjectedCoordNdc * 0.5f + 0.5f;
     // For pixels outside of the focus view, the sampler will give us a fully transparent pixel.
     vec4 color1 = texture(sourceFocusTexture, layer1TexCoord);
 
