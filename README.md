@@ -1,3 +1,56 @@
+# Linux/OpenGL port by James Hogan
+
+This is a port of mbucchia's Quad Views OpenXR layer to Linux + OpenGL (from
+Windows + Direct3D).
+
+To configure, build and install to the current user's home directory:
+```shell
+$ cmake -B build -DCMAKE_INSTALL_PREFIX=$HOME/.local .
+$ cmake --build build -j$(nproc)
+$ cmake --install build
+```
+
+## Features
+
+Working features:
+- Basic compositing of quad views using OpenGL
+- `debug_focus_view`
+- Logging to `$XDG_RUNTIME_DIR/Quad-Views-Foveated/Quad-Views-Foveated.log`
+
+New features of this port:
+- Stereo with Foveated Inset (OpenXR 1.1)
+- Handle mutable FOV
+
+Features not yet working:
+- Handling of subimage rect and array index
+- Reading settings.cfg from a sensible location (for now, create a symlink at
+  `$XDG_RUNTIME_DIR/Quad-Views-Foveated/settings.cfg`)
+
+Features missing and unlikely:
+- Sharpening of focus view
+
+## Platforms and Graphics APIs
+
+The following platforms should work:
+- Linux + OpenGL via Xlib (GLX)
+- Linux + OpenGL via EGL
+
+The following platforms have stubs and still need the compositor ported:
+- Linux + Vulkan
+
+The following platforms are untested, and are most certainly broken by this
+port (though some effort has been made to allow the code to support multiple
+graphics APIs simultaneously):
+- Windows + D3D11
+- Windows + D3D12
+- Windows + OpenGL via wgl
+
+## Testing status
+
+Tested with:
+- WiVRn (Steam Frame streamed)
+- SteamVR (Steam Frame standalone)
+
 # Foveated Rendering via Quad Views
 
 In layperson's terms:
