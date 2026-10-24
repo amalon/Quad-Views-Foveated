@@ -1072,6 +1072,11 @@ namespace openxr_api_layer {
                                         viewLocateInfo->displayTime, false /* getStateOnly */, gazeUnitVector);
                                 }
 
+                                // Update stereo view FOV, assume mutable
+                                for (uint32_t i = 0; i < xr::StereoView::Count; ++i) {
+                                    m_cachedEyeFov[i] = views[i].fov;
+                                }
+
                                 // Set up the focus view or FOV tangent.
                                 for (uint32_t i = viewLocateInfo->viewConfigurationType ==
                                                           XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO
