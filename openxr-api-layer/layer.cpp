@@ -2738,7 +2738,7 @@ namespace openxr_api_layer {
                     gl.Uniform1i(m_debugFocusViewUniform, m_layer->m_debugFocusView);
                     gl.Uniform2f(m_eyeGazeUniform,
                                   (uint32_t)(m_layer->m_fullFovResolution.width * (m_layer->m_eyeGaze[viewIndex].x + 1.f) / 2.f),
-                                  (uint32_t)(m_layer->m_fullFovResolution.height * (1.f - m_layer->m_eyeGaze[viewIndex].y) / 2.f));
+                                  (uint32_t)(m_layer->m_fullFovResolution.height * (m_layer->m_eyeGaze[viewIndex].y + 1.f) / 2.f));
                     gl.Uniform1i(m_sourceStereoTextureUniform, 0);
                     gl.Uniform1i(m_sourceFocusTextureUniform, 1);
 
