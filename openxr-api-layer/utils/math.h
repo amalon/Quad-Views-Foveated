@@ -171,7 +171,7 @@ namespace xr::math {
     }
 
     inline glm::quat LoadXrQuaternion(const XrQuaternionf& quaternion) {
-        return glm::quat(quaternion.x, quaternion.y, quaternion.z, quaternion.w);
+        return glm::quat(quaternion.w, quaternion.x, quaternion.y, quaternion.z);
     }
 
 #if 0
@@ -195,28 +195,28 @@ namespace xr::math {
 #endif
 
     inline void StoreXrVector2(XrVector2f* outVec, const glm::vec2 &inVec) {
-        outVec->x = inVec[0];
-        outVec->y = inVec[1];
+        outVec->x = inVec.x;
+        outVec->y = inVec.y;
     }
 
     inline void StoreXrVector3(XrVector3f* outVec, const glm::vec3 &inVec) {
-        outVec->x = inVec[0];
-        outVec->y = inVec[1];
-        outVec->z = inVec[2];
+        outVec->x = inVec.x;
+        outVec->y = inVec.y;
+        outVec->z = inVec.z;
     }
 
     inline void StoreXrVector4(XrVector4f* outVec, const glm::vec4 &inVec) {
-        outVec->x = inVec[0];
-        outVec->y = inVec[1];
-        outVec->z = inVec[2];
-        outVec->w = inVec[3];
+        outVec->x = inVec.x;
+        outVec->y = inVec.y;
+        outVec->z = inVec.z;
+        outVec->w = inVec.w;
     }
 
     inline void StoreXrQuaternion(XrQuaternionf* outQuat, const glm::quat &inQuat) {
-        outQuat->x = inQuat[0];
-        outQuat->y = inQuat[1];
-        outQuat->z = inQuat[2];
-        outQuat->w = inQuat[3];
+        outQuat->x = inQuat.x;
+        outQuat->y = inQuat.y;
+        outQuat->z = inQuat.z;
+        outQuat->w = inQuat.w;
     }
 
 #if _WIN32
