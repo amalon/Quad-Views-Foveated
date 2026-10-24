@@ -2727,9 +2727,7 @@ namespace openxr_api_layer {
                         const glm::mat4 layerViewProjection =
                             ComposeProjectionMatrix(focusView.fov, NearFar{0.1f, 20.f});
 
-                        // FIXME double check, is inverseTransposeappropriate for
-                        // projection matrices?
-                        auto focusProjection = glm::inverseTranspose(baseLayerViewProjection) * layerViewProjection;
+                        auto focusProjection = layerViewProjection * glm::inverse(baseLayerViewProjection);
                         gl.UniformMatrix4fv(m_focusProjectionUniform, 1, GL_FALSE, &focusProjection[0][0]);
                     }
                     gl.Uniform1f(m_smoothingAreaUniform, m_layer->m_useQuadViews ? m_layer->m_smoothenFocusViewEdges : 0);
