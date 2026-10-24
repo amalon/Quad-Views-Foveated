@@ -434,44 +434,44 @@ namespace xr::math {
         {
             // place the far plane at infinity
             result[0][0] = 2 / tanAngleWidth;
-            result[0][1] = 0;
-            result[0][2] = (tanAngleRight + tanAngleLeft) / tanAngleWidth;
-            result[0][3] = 0;
-
             result[1][0] = 0;
-            result[1][1] = 2 / tanAngleHeight;
-            result[1][2] = (tanAngleUp + tanAngleDown) / tanAngleHeight;
-            result[1][3] = 0;
-
-            result[2][0] = 0;
-            result[2][1] = 0;
-            result[2][2] = -1;
-            result[2][3] = -(nearFar.Near + offsetZ);
-
+            result[2][0] = (tanAngleRight + tanAngleLeft) / tanAngleWidth;
             result[3][0] = 0;
+
+            result[0][1] = 0;
+            result[1][1] = 2 / tanAngleHeight;
+            result[2][1] = (tanAngleUp + tanAngleDown) / tanAngleHeight;
             result[3][1] = 0;
-            result[3][2] = -1;
+
+            result[0][2] = 0;
+            result[1][2] = 0;
+            result[2][2] = -1;
+            result[3][2] = -(nearFar.Near + offsetZ);
+
+            result[0][3] = 0;
+            result[1][3] = 0;
+            result[2][3] = -1;
             result[3][3] = 0;
         } else {
             // normal projection
             result[0][0] = 2 / tanAngleWidth;
-            result[0][1] = 0;
-            result[0][2] = (tanAngleRight + tanAngleLeft) / tanAngleWidth;
-            result[0][3] = 0;
-
             result[1][0] = 0;
-            result[1][1] = 2 / tanAngleHeight;
-            result[1][2] = (tanAngleUp + tanAngleDown) / tanAngleHeight;
-            result[1][3] = 0;
-
-            result[2][0] = 0;
-            result[2][1] = 0;
-            result[2][2] = -(nearFar.Far + offsetZ) / (nearFar.Far - nearFar.Near);
-            result[2][3] = -(nearFar.Far * (nearFar.Near + offsetZ)) / (nearFar.Far - nearFar.Near);
-
+            result[2][0] = (tanAngleRight + tanAngleLeft) / tanAngleWidth;
             result[3][0] = 0;
+
+            result[0][1] = 0;
+            result[1][1] = 2 / tanAngleHeight;
+            result[2][1] = (tanAngleUp + tanAngleDown) / tanAngleHeight;
             result[3][1] = 0;
-            result[3][2] = -1;
+
+            result[0][2] = 0;
+            result[1][2] = 0;
+            result[2][2] = -(nearFar.Far + offsetZ) / (nearFar.Far - nearFar.Near);
+            result[3][2] = -(nearFar.Far * (nearFar.Near + offsetZ)) / (nearFar.Far - nearFar.Near);
+
+            result[0][3] = 0;
+            result[1][3] = 0;
+            result[2][3] = -1;
             result[3][3] = 0;
         }
 
@@ -488,11 +488,11 @@ namespace xr::math {
 
     inline void ValidateProjectionMatrix(const glm::mat4& p) {
         // Reference equations on top of ComposeProjectionMatrix() above.
-        if (p[1][0] != 0 || p[2][0] != 0 || p[3][0] != 0 ||
-            // p[0][1] is not 0 on old MR devices, but small enough to be ignored. For future MR devices, it should be 0 (no shear)
-            p[2][1] != 0 || p[3][1] != 0 ||
+        if (p[0][1] != 0 || p[0][2] != 0 || p[0][3] != 0 ||
+            // p[1][0] is not 0 on old MR devices, but small enough to be ignored. For future MR devices, it should be 0 (no shear)
+            p[1][2] != 0 || p[1][3] != 0 ||
             // When near or far plane is infinite, p[2][2] is 0 or -1, respectively. They are valid cases.
-            p[3][2] != -1 || p[0][3] != 0 || p[1][3] != 0 || p[3][3] != 0) {
+            p[2][3] != -1 || p[3][0] != 0 || p[3][1] != 0 || p[3][3] != 0) {
             throw std::runtime_error("Invalid projection matrix");
         }
     }
@@ -537,10 +537,10 @@ namespace xr::math {
         // t = n * (m32 + 1) / m22  => so forth
         XrFovf fov;
         // FIXME correct?
-        fov.angleLeft = atan2(p[2][0] - 1, p[0][0]);
-        fov.angleRight = atan2(p[2][0] + 1, p[0][0]);
-        fov.angleDown = atan2(p[2][1] - 1, p[1][1]);
-        fov.angleUp = atan2(p[2][1] + 1, p[1][1]);
+        fov.angleLeft = atan2(p[0][2] - 1, p[0][0]);
+        fov.angleRight = atan2(p[0][2] + 1, p[0][0]);
+        fov.angleDown = atan2(p[1][2] - 1, p[1][1]);
+        fov.angleUp = atan2(p[1][2] + 1, p[1][1]);
         return fov;
     }
 

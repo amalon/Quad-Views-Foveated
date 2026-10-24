@@ -43,11 +43,12 @@ namespace xr {
 
             const auto fullProjection = ComposeProjectionMatrix(fullFov, {0.001f, 100.f});
             // clang-format off
-            const auto boundingFov = glm::mat4(2.f / width, 0.f,          0.f, -(2.f * center.x) / width,
-                                               0.f,         2.f / height, 0.f, 1*-(2.f * center.y) / height,
-                                               0.f,         0.f,          1.f, 0.f,
-                                               0.f,         0.f,          0.f, 1.f);
-            auto projection = fullProjection * boundingFov;
+            const auto boundingFov = glm::mat4(2.f / width,                0.f,                          0.f, 0.f,
+                                               0.f,                        2.f / height,                 0.f, 0.f,
+                                               0.f,                        0.f,                          1.f, 0.f,
+                                               -(2.f * center.x) / width,  1*-(2.f * center.y) / height, 0.f, 1.f);
+            auto projection = boundingFov * fullProjection;
+
             return DecomposeProjectionMatrix(projection);
         }
 
@@ -57,7 +58,6 @@ namespace xr {
             // 1) Compute the view space to camera transform for this eye.
             const auto cameraProjection = ComposeProjectionMatrix(eyeInViewSpace.fov, {0.001f, 100.f});
             const auto cameraView = LoadXrPose(eyeInViewSpace.pose);
-            // FIXME right way around?
             const auto viewToCamera = cameraProjection * cameraView;
 
             // 2) Transform the 3D point to camera space.
