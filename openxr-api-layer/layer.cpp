@@ -3332,8 +3332,8 @@ namespace openxr_api_layer {
             }
 
             if (!getStateOnly) {
-                const auto gaze = LoadXrPose(location.pose);
-                const auto gazeProjectedPoint = gaze * glm::vec4(0.f, 0.f, 1.f, 1.f);
+                const glm::mat4 gaze = LoadXrPose(location.pose);
+                const glm::vec3 gazeProjectedPoint(gaze * glm::vec4(0.f, 0.f, 1.f, 1.f));
 
                 StoreXrVector3(&unitVector, glm::normalize(gazeProjectedPoint));
             }
