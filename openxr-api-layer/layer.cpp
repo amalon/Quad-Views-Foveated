@@ -49,10 +49,10 @@
 
 #ifdef XR_USE_GRAPHICS_API_OPENGL
 const std::string g_ProjectionVert =
-#include "Projection.vert"
+#include "Projection.vert.h"
 ;
 const std::string g_ProjectionFrag =
-#include "Projection.frag"
+#include "Projection.frag.h"
 ;
 #endif
 

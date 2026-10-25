@@ -1,4 +1,3 @@
-R"(
 #version 330 core
 
 // MIT License
@@ -36,4 +35,3 @@ void main() {
     gl_Position = vec4(texcoord * vec2(2.0, 2.0) + vec2(-1.0, -1.0), 0.0, 1.0);
     projectedFocusCoord = (focusProjection * gl_Position).xyw;
 }
-)"

@@ -1,4 +1,3 @@
-R"(
 #version 330 core
 
 // MIT License
@@ -101,4 +100,3 @@ void main() {
         }
     }
 }
-)"

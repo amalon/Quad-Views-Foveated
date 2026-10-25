@@ -98,6 +98,24 @@ target_include_directories(XrApiLayer_quad_views_foveated
         ${PROJECT_SOURCE_DIR}/external/FidelityFX-CAS/ffx-cas
 )
 
+# Wrap shaders with raw string literals
+make_directory("${PROJECT_BINARY_DIR}/include")
+foreach(GLSL_FILE IN LISTS XrApiLayer_quad_views_foveated_GLSL)
+    add_custom_command(
+        OUTPUT "${PROJECT_BINARY_DIR}/include/${GLSL_FILE}.h"
+        COMMAND ${CMAKE_COMMAND} -E echo 'R\"\(' > "${PROJECT_BINARY_DIR}/include/${GLSL_FILE}.h"
+        COMMAND ${CMAKE_COMMAND} -E cat "${GLSL_FILE}" >> "${PROJECT_BINARY_DIR}/include/${GLSL_FILE}.h"
+        COMMAND ${CMAKE_COMMAND} -E echo '\)\"' >> "${PROJECT_BINARY_DIR}/include/${GLSL_FILE}.h"
+        WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
+        DEPENDS "${CMAKE_CURRENT_LIST_DIR}/${GLSL_FILE}"
+        COMMENT "Wrap ${GLSL_FILE}"
+    )
+    add_custom_target(wrap_${GLSL_FILE}
+        DEPENDS "${PROJECT_BINARY_DIR}/include/${GLSL_FILE}.h"
+    )
+    add_dependencies(XrApiLayer_quad_views_foveated wrap_${GLSL_FILE})
+endforeach()
+
 target_link_libraries(XrApiLayer_quad_views_foveated
     PRIVATE
         ${OPENGL_LIBRARIES}
