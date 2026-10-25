@@ -2348,13 +2348,18 @@ namespace openxr_api_layer {
             struct {
                 PFNGLACTIVETEXTUREPROC ActiveTexture{nullptr};
                 PFNGLATTACHSHADERPROC AttachShader{nullptr};
+                PFNGLBINDFRAMEBUFFERPROC BindFramebuffer{nullptr};
                 PFNGLBINDSAMPLERPROC BindSampler{nullptr};
+                PFNGLCHECKFRAMEBUFFERSTATUSPROC CheckFramebufferStatus{nullptr};
                 PFNGLCOMPILESHADERPROC CompileShader{nullptr};
                 PFNGLCREATEPROGRAMPROC CreateProgram{nullptr};
                 PFNGLCREATESHADERPROC CreateShader{nullptr};
+                PFNGLDELETEFRAMEBUFFERSPROC DeleteFramebuffers{nullptr};
                 PFNGLDELETEPROGRAMPROC DeleteProgram{nullptr};
                 PFNGLDELETESAMPLERSPROC DeleteSamplers{nullptr};
                 PFNGLDELETESHADERPROC DeleteShader{nullptr};
+                PFNGLFRAMEBUFFERTEXTURE2DPROC FramebufferTexture2D{nullptr};
+                PFNGLGENFRAMEBUFFERSPROC GenFramebuffers{nullptr};
                 PFNGLGENSAMPLERSPROC GenSamplers{nullptr};
                 PFNGLGETPROGRAMINFOLOGPROC GetProgramInfoLog{nullptr};
                 PFNGLGETPROGRAMIVPROC GetProgramiv{nullptr};
@@ -2367,28 +2372,27 @@ namespace openxr_api_layer {
                 PFNGLSHADERSOURCEPROC ShaderSource{nullptr};
                 PFNGLUNIFORM1FPROC Uniform1f{nullptr};
                 PFNGLUNIFORM1IPROC Uniform1i{nullptr};
+                PFNGLUNIFORM2FPROC Uniform2f{nullptr};
                 PFNGLUNIFORMMATRIX4FVPROC UniformMatrix4fv{nullptr};
                 PFNGLUSEPROGRAMPROC UseProgram{nullptr};
-
-                PFNGLGENFRAMEBUFFERSPROC GenFramebuffers{nullptr};
-                PFNGLBINDFRAMEBUFFERPROC BindFramebuffer{nullptr};
-                PFNGLFRAMEBUFFERTEXTURE2DPROC FramebufferTexture2D{nullptr};
-                PFNGLCHECKFRAMEBUFFERSTATUSPROC CheckFramebufferStatus{nullptr};
-                PFNGLDELETEFRAMEBUFFERSPROC DeleteFramebuffers{nullptr};
-                PFNGLUNIFORM2FPROC Uniform2f{nullptr};
             } gl;
 
             void initFunctions(const graphics::IContext* context) {
                 // :'<,'>s/\(PFN.*PROC\) \(.*\){nullptr}/gl.\2 = (\1)context->getGLProcAddress("gl\2")/g
                 gl.ActiveTexture = (PFNGLACTIVETEXTUREPROC)context->getGLProcAddress("glActiveTexture");
                 gl.AttachShader = (PFNGLATTACHSHADERPROC)context->getGLProcAddress("glAttachShader");
+                gl.BindFramebuffer = (PFNGLBINDFRAMEBUFFERPROC)context->getGLProcAddress("glBindFramebuffer");
                 gl.BindSampler = (PFNGLBINDSAMPLERPROC)context->getGLProcAddress("glBindSampler");
+                gl.CheckFramebufferStatus = (PFNGLCHECKFRAMEBUFFERSTATUSPROC)context->getGLProcAddress("glCheckFramebufferStatus");
                 gl.CompileShader = (PFNGLCOMPILESHADERPROC)context->getGLProcAddress("glCompileShader");
                 gl.CreateProgram = (PFNGLCREATEPROGRAMPROC)context->getGLProcAddress("glCreateProgram");
                 gl.CreateShader = (PFNGLCREATESHADERPROC)context->getGLProcAddress("glCreateShader");
+                gl.DeleteFramebuffers = (PFNGLDELETEFRAMEBUFFERSPROC)context->getGLProcAddress("glDeleteFramebuffers");
                 gl.DeleteProgram = (PFNGLDELETEPROGRAMPROC)context->getGLProcAddress("glDeleteProgram");
                 gl.DeleteSamplers = (PFNGLDELETESAMPLERSPROC)context->getGLProcAddress("glDeleteSamplers");
                 gl.DeleteShader = (PFNGLDELETESHADERPROC)context->getGLProcAddress("glDeleteShader");
+                gl.FramebufferTexture2D = (PFNGLFRAMEBUFFERTEXTURE2DPROC)context->getGLProcAddress("glFramebufferTexture2D");
+                gl.GenFramebuffers = (PFNGLGENFRAMEBUFFERSPROC)context->getGLProcAddress("glGenFramebuffers");
                 gl.GenSamplers = (PFNGLGENSAMPLERSPROC)context->getGLProcAddress("glGenSamplers");
                 gl.GetProgramInfoLog = (PFNGLGETPROGRAMINFOLOGPROC)context->getGLProcAddress("glGetProgramInfoLog");
                 gl.GetProgramiv = (PFNGLGETPROGRAMIVPROC)context->getGLProcAddress("glGetProgramiv");
@@ -2401,15 +2405,9 @@ namespace openxr_api_layer {
                 gl.ShaderSource = (PFNGLSHADERSOURCEPROC)context->getGLProcAddress("glShaderSource");
                 gl.Uniform1f = (PFNGLUNIFORM1FPROC)context->getGLProcAddress("glUniform1f");
                 gl.Uniform1i = (PFNGLUNIFORM1IPROC)context->getGLProcAddress("glUniform1i");
+                gl.Uniform2f = (PFNGLUNIFORM2FPROC)context->getGLProcAddress("glUniform2f");
                 gl.UniformMatrix4fv = (PFNGLUNIFORMMATRIX4FVPROC)context->getGLProcAddress("glUniformMatrix4fv");
                 gl.UseProgram = (PFNGLUSEPROGRAMPROC)context->getGLProcAddress("glUseProgram");
-
-                gl.GenFramebuffers = (PFNGLGENFRAMEBUFFERSPROC)context->getGLProcAddress("glGenFramebuffers");
-                gl.BindFramebuffer = (PFNGLBINDFRAMEBUFFERPROC)context->getGLProcAddress("glBindFramebuffer");
-                gl.FramebufferTexture2D = (PFNGLFRAMEBUFFERTEXTURE2DPROC)context->getGLProcAddress("glFramebufferTexture2D");
-                gl.CheckFramebufferStatus = (PFNGLCHECKFRAMEBUFFERSTATUSPROC)context->getGLProcAddress("glCheckFramebufferStatus");
-                gl.DeleteFramebuffers = (PFNGLDELETEFRAMEBUFFERSPROC)context->getGLProcAddress("glDeleteFramebuffers");
-                gl.Uniform2f = (PFNGLUNIFORM2FPROC)context->getGLProcAddress("glUniform2f");
             }
 
             GLuint buildShader(GLenum shaderType, const std::string &name, const std::string &src) {
