@@ -98,6 +98,29 @@ target_include_directories(XrApiLayer_quad_views_foveated
         ${PROJECT_SOURCE_DIR}/external/FidelityFX-CAS/ffx-cas
 )
 
+# GLSL shaders
+set(XrApiLayer_quad_views_foveated_GLSL
+    Projection.vert
+    Projection.frag
+)
+
+# Validate GLSL shaders
+find_program(GLSLANGVALIDATOR "glslangValidator")
+mark_as_advanced(FORCE GLSLANGVALIDATOR)
+if (GLSLANGVALIDATOR)
+    message(STATUS "glslangValidator found: ${GLSLANGVALIDATOR}")
+
+    add_custom_target(validate_shaders
+        COMMAND ${GLSLANGVALIDATOR} ${XrApiLayer_quad_views_foveated_GLSL}
+        WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
+    )
+    add_dependencies(XrApiLayer_quad_views_foveated
+        validate_shaders
+    )
+else()
+    message(STATUS "glslangValidator not found!")
+endif()
+
 # Wrap shaders with raw string literals
 make_directory("${PROJECT_BINARY_DIR}/include")
 foreach(GLSL_FILE IN LISTS XrApiLayer_quad_views_foveated_GLSL)
