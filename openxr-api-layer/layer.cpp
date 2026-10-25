@@ -2329,6 +2329,7 @@ namespace openxr_api_layer {
             virtual void cleanupCompositionResources(graphics::IGraphicsDevice* device) = 0;
             virtual Swapchain* createSwapchain() = 0;
             virtual void composite(graphics::IGraphicsDevice* device, uint32_t viewIndex,
+                                   const XrCompositionLayerProjectionView& stereoView,
                                    Swapchain* swapchainForStereoView,
                                    const XrCompositionLayerProjectionView& focusView,
                                    Swapchain* swapchainForFocusView,
@@ -2373,6 +2374,7 @@ namespace openxr_api_layer {
                 PFNGLUNIFORM1FPROC Uniform1f{nullptr};
                 PFNGLUNIFORM1IPROC Uniform1i{nullptr};
                 PFNGLUNIFORM2FPROC Uniform2f{nullptr};
+                PFNGLUNIFORM4FPROC Uniform4f{nullptr};
                 PFNGLUNIFORMMATRIX4FVPROC UniformMatrix4fv{nullptr};
                 PFNGLUSEPROGRAMPROC UseProgram{nullptr};
             } gl;
@@ -2406,6 +2408,7 @@ namespace openxr_api_layer {
                 gl.Uniform1f = (PFNGLUNIFORM1FPROC)context->getGLProcAddress("glUniform1f");
                 gl.Uniform1i = (PFNGLUNIFORM1IPROC)context->getGLProcAddress("glUniform1i");
                 gl.Uniform2f = (PFNGLUNIFORM2FPROC)context->getGLProcAddress("glUniform2f");
+                gl.Uniform4f = (PFNGLUNIFORM4FPROC)context->getGLProcAddress("glUniform4f");
                 gl.UniformMatrix4fv = (PFNGLUNIFORMMATRIX4FVPROC)context->getGLProcAddress("glUniformMatrix4fv");
                 gl.UseProgram = (PFNGLUSEPROGRAMPROC)context->getGLProcAddress("glUseProgram");
             }
@@ -2504,6 +2507,8 @@ namespace openxr_api_layer {
                 m_isUnpremultipliedAlphaUniform = gl.GetUniformLocation(m_projectionProg, "isUnpremultipliedAlpha");
                 m_debugFocusViewUniform = gl.GetUniformLocation(m_projectionProg, "debugFocusView");
                 m_eyeGazeUniform = gl.GetUniformLocation(m_projectionProg, "eyeGaze");
+                m_stereoSubimageUniform = gl.GetUniformLocation(m_projectionProg, "stereoSubimage");
+                m_focusSubimageUniform = gl.GetUniformLocation(m_projectionProg, "focusSubimage");
                 m_sourceStereoTextureUniform = gl.GetUniformLocation(m_projectionProg, "sourceStereoTexture");
                 m_sourceFocusTextureUniform = gl.GetUniformLocation(m_projectionProg, "sourceFocusTexture");
 
@@ -2558,6 +2563,7 @@ namespace openxr_api_layer {
             }
 
             void composite(graphics::IGraphicsDevice* device, uint32_t viewIndex,
+                           const XrCompositionLayerProjectionView& stereoView,
                            Swapchain* _swapchainForStereoView,
                            const XrCompositionLayerProjectionView& focusView,
                            Swapchain* _swapchainForFocusView,
@@ -2727,7 +2733,6 @@ namespace openxr_api_layer {
                     textures[1] = sourceFocusImage;
                     //textures[1] = swapchainForFocusView->flatImage[xr::StereoView::Count + viewIndex]
                 }
-                // FIXME subimage!
 
                 // Save current FBO
                 GLint prevReadFBO, prevDrawFBO;
@@ -2758,6 +2763,16 @@ namespace openxr_api_layer {
                     gl.Uniform2f(m_eyeGazeUniform,
                                   (uint32_t)(m_layer->m_fullFovResolution.width * (m_layer->m_eyeGaze[viewIndex].x + 1.f) / 2.f),
                                   (uint32_t)(m_layer->m_fullFovResolution.height * (m_layer->m_eyeGaze[viewIndex].y + 1.f) / 2.f));
+                    gl.Uniform4f(m_stereoSubimageUniform,
+                                 stereoView.subImage.imageRect.offset.x,
+                                 stereoView.subImage.imageRect.offset.y,
+                                 stereoView.subImage.imageRect.extent.width,
+                                 stereoView.subImage.imageRect.extent.height);
+                    gl.Uniform4f(m_focusSubimageUniform,
+                                 focusView.subImage.imageRect.offset.x,
+                                 focusView.subImage.imageRect.offset.y,
+                                 focusView.subImage.imageRect.extent.width,
+                                 focusView.subImage.imageRect.extent.height);
                     gl.Uniform1i(m_sourceStereoTextureUniform, 0);
                     gl.Uniform1i(m_sourceFocusTextureUniform, 1);
 
@@ -2824,6 +2839,10 @@ namespace openxr_api_layer {
             GLint m_debugFocusViewUniform{-1};
             // vec2 eyeGaze
             GLint m_eyeGazeUniform{-1};
+            // vec4 stereoSubimage
+            GLint m_stereoSubimageUniform{-1};
+            // vec4 focusSubimage
+            GLint m_focusSubimageUniform{-1};
             // sampler2D sourceStereoTexture
             GLint m_sourceStereoTextureUniform{-1};
             // sampler2D sourceFocusTexture
@@ -2849,6 +2868,7 @@ namespace openxr_api_layer {
             }
 
             void composite(graphics::IGraphicsDevice* device, uint32_t viewIndex,
+                           const XrCompositionLayerProjectionView& stereoView,
                            Swapchain* swapchainForStereoView,
                            const XrCompositionLayerProjectionView& focusView,
                            Swapchain* swapchainForFocusView,
@@ -2952,6 +2972,7 @@ namespace openxr_api_layer {
             }
 
             void composite(graphics::IGraphicsDevice* device, uint32_t viewIndex,
+                           const XrCompositionLayerProjectionView& stereoView,
                            Swapchain* _swapchainForStereoView,
                            const XrCompositionLayerProjectionView& focusView,
                            Swapchain* _swapchainForFocusView,
@@ -3462,6 +3483,7 @@ namespace openxr_api_layer {
             }
 
             m_apiHelper->composite(m_graphicsDevice.get(), viewIndex,
+                                   stereoView,
                                    swapchainForStereoView,
                                    focusView,
                                    swapchainForFocusView,

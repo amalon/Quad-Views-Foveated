@@ -29,6 +29,8 @@ uniform bool ignoreAlpha;
 uniform bool isUnpremultipliedAlpha;
 uniform bool debugFocusView;
 uniform vec2 eyeGaze;
+uniform vec4 stereoSubimage;
+uniform vec4 focusSubimage;
 
 uniform sampler2D sourceStereoTexture;
 uniform sampler2D sourceFocusTexture;
@@ -50,14 +52,25 @@ vec4 unpremultiplyAlpha(vec4 color) {
     }
 }
 
+// subimage xy=offset, zw=size
+vec4 textureSubimage(sampler2D sampler, vec4 subimage, vec2 subimageCoord) {
+    // Clamp coordinates to 0.5 texels from edges of subimage, so as not to
+    // bleed neighbouring subimages
+    ivec2 texSize = textureSize(sampler, 0);
+    vec2 halfTexel = vec2(0.5) / texSize;
+    vec2 clampedTexcoord = clamp(subimageCoord, halfTexel, vec2(1) - halfTexel);
+    // Transform from subimage coordinates to texture coordinates
+    vec2 coord = (subimage.xy + clampedTexcoord*subimage.zw) / texSize;
+    return texture(sampler, coord);
+}
+
 void main() {
     // Convert to texcoord and pick the pixel from each layer.
-    vec4 color0 = texture(sourceStereoTexture, texcoord);
+    vec4 color0 = textureSubimage(sourceStereoTexture, stereoSubimage, texcoord);
 
     vec2 layer1ProjectedCoordNdc = projectedFocusCoord.xy / projectedFocusCoord.z;
     vec2 layer1TexCoord = layer1ProjectedCoordNdc * 0.5f + 0.5f;
-    // For pixels outside of the focus view, the sampler will give us a fully transparent pixel.
-    vec4 color1 = texture(sourceFocusTexture, layer1TexCoord);
+    vec4 color1 = textureSubimage(sourceFocusTexture, focusSubimage, layer1TexCoord);
 
     if (ignoreAlpha) {
         color0.a = color1.a = 1;
