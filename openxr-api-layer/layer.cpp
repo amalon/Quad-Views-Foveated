@@ -2791,7 +2791,14 @@ namespace openxr_api_layer {
                         gl.BindSampler(i, m_linearClampSampler);
                     }
 
-                    // FIXME save polygon mode, front face, and viewport
+                    // Save draw state
+                    GLint prevPolygonModes[2];
+                    GLint prevFrontFace;
+                    GLint prevViewport[4];
+                    glGetIntegerv(GL_POLYGON_MODE, prevPolygonModes);
+                    glGetIntegerv(GL_FRONT_FACE, &prevFrontFace);
+                    glGetIntegerv(GL_VIEWPORT, prevViewport);
+
                     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
                     glFrontFace(GL_CCW);
                     glViewport(0, 0,
@@ -2799,6 +2806,13 @@ namespace openxr_api_layer {
                                m_layer->m_fullFovResolution.height);
                     // FIXME need to disable vertex arrays?
                     glDrawArrays(GL_TRIANGLES, 0, 3);
+
+                    // Restore draw state
+                    glPolygonMode(GL_FRONT, prevPolygonModes[0]);
+                    glPolygonMode(GL_BACK, prevPolygonModes[1]);
+                    glFrontFace(prevFrontFace);
+                    glViewport(prevViewport[0], prevViewport[1],
+                               prevViewport[2], prevViewport[3]);
 
                     // Restore textures and samplers
                     for (unsigned int i = 0; i < 2; ++i) {
