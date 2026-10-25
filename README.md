@@ -13,7 +13,7 @@ $ cmake --install build
 ## Features
 
 Working features:
-- Basic compositing of quad views using OpenGL
+- Compositing of quad views using OpenGL
 - `debug_focus_view`
 - Logging to `$XDG_RUNTIME_DIR/Quad-Views-Foveated/Quad-Views-Foveated.log`
 
@@ -22,7 +22,6 @@ New features of this port:
 - Handle mutable FOV
 
 Features not yet working:
-- Handling of subimage array index
 - Reading settings.cfg from a sensible location (for now, create a symlink at
   `$XDG_RUNTIME_DIR/Quad-Views-Foveated/settings.cfg`)
 
