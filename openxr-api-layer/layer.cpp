@@ -2812,8 +2812,12 @@ namespace openxr_api_layer {
                     glDrawArrays(GL_TRIANGLES, 0, 3);
 
                     // Restore draw state
-                    glPolygonMode(GL_FRONT, prevPolygonModes[0]);
-                    glPolygonMode(GL_BACK, prevPolygonModes[1]);
+                    if (prevPolygonModes[0] == prevPolygonModes[1]) {
+                        glPolygonMode(GL_FRONT_AND_BACK, prevPolygonModes[0]);
+                    } else {
+                        glPolygonMode(GL_FRONT, prevPolygonModes[0]);
+                        glPolygonMode(GL_BACK, prevPolygonModes[1]);
+                    }
                     glFrontFace(prevFrontFace);
                     glViewport(prevViewport[0], prevViewport[1],
                                prevViewport[2], prevViewport[3]);
