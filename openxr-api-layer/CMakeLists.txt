@@ -111,7 +111,7 @@ if (GLSLANGVALIDATOR)
     message(STATUS "glslangValidator found: ${GLSLANGVALIDATOR}")
 
     add_custom_target(validate_shaders
-        COMMAND ${GLSLANGVALIDATOR} ${XrApiLayer_quad_views_foveated_GLSL}
+        COMMAND ${GLSLANGVALIDATOR} -l --quiet ${XrApiLayer_quad_views_foveated_GLSL}
         WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
     )
     add_dependencies(XrApiLayer_quad_views_foveated
