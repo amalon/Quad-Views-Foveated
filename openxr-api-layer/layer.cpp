@@ -2798,12 +2798,16 @@ namespace openxr_api_layer {
                     glGetIntegerv(GL_POLYGON_MODE, prevPolygonModes);
                     glGetIntegerv(GL_FRONT_FACE, &prevFrontFace);
                     glGetIntegerv(GL_VIEWPORT, prevViewport);
+                    GLboolean prevSrgb = glIsEnabled(GL_FRAMEBUFFER_SRGB);
 
                     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
                     glFrontFace(GL_CCW);
                     glViewport(0, 0,
                                m_layer->m_fullFovResolution.width,
                                m_layer->m_fullFovResolution.height);
+                    if (!prevSrgb)
+                        glEnable(GL_FRAMEBUFFER_SRGB);
+
                     // FIXME need to disable vertex arrays?
                     glDrawArrays(GL_TRIANGLES, 0, 3);
 
@@ -2813,6 +2817,8 @@ namespace openxr_api_layer {
                     glFrontFace(prevFrontFace);
                     glViewport(prevViewport[0], prevViewport[1],
                                prevViewport[2], prevViewport[3]);
+                    if (!prevSrgb)
+                        glDisable(GL_FRAMEBUFFER_SRGB);
 
                     // Restore textures and samplers
                     for (unsigned int i = 0; i < 2; ++i) {
