@@ -2288,8 +2288,10 @@ namespace openxr_api_layer {
                 auto* apiHelper = static_cast<OpenGLApiHelper*>(layer->m_apiHelper.get());
                 // Delete any FBOs
                 for (unsigned int i = 0; i < xr::StereoView::Count; ++i) {
-                    apiHelper->gl.DeleteFramebuffers(fullFovSwapchainFBOs[i].size(), fullFovSwapchainFBOs[i].data());
-                    fullFovSwapchainFBOs[i].clear();
+                    if (!fullFovSwapchainFBOs[i].empty()) {
+                        apiHelper->gl.DeleteFramebuffers(fullFovSwapchainFBOs[i].size(), fullFovSwapchainFBOs[i].data());
+                        fullFovSwapchainFBOs[i].clear();
+                    }
                 }
             }
 
