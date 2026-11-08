@@ -941,7 +941,7 @@ namespace openxr_api_layer {
 
                     // HACK: The Oculus runtime hangs upon the first xrWaitFrame() following a session restart. Add a
                     // call to unblock their state machine.
-                    {
+                    if (m_quirkBeginFrameBeforeWait) {
                         TraceLocalActivity(local);
                         TraceLoggingWriteStart(local, "xrBeginSession_StaleBeginFrame");
                         const XrResult result2 = OpenXrApi::xrBeginFrame(session, nullptr);
@@ -3984,6 +3984,9 @@ namespace openxr_api_layer {
                     } else if (name == "unadvertise") {
                         m_unadvertiseQuadViews = std::stoi(value);
                         parsed = true;
+                    } else if (name == "quirk_begin_frame_before_wait") {
+                        m_quirkBeginFrameBeforeWait = std::stoi(value);
+                        parsed = true;
                     } else if (name == "debug_simulate_tracking") {
                         m_debugSimulateTracking = std::stoi(value);
                         parsed = true;
@@ -4066,6 +4069,7 @@ namespace openxr_api_layer {
         float m_fovTangentY{1.f};
         bool m_useTurboMode{true};
         bool m_unadvertiseQuadViews{false};
+        bool m_quirkBeginFrameBeforeWait{false};
 
         bool m_needComputeBaseFov{true};
         XrFovf m_cachedEyeFov[xr::QuadView::Count]{};
