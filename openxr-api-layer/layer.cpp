@@ -270,8 +270,10 @@ namespace openxr_api_layer {
 
                     // Parse the configuration. Load the file shipped with the layer first, followed by the file the
                     // users may edit.
-                    LoadConfiguration(dllHome / "settings.cfg");
-                    LoadConfiguration(localAppData / "settings.cfg");
+                    for (auto it = dataDirs.rbegin(); it != dataDirs.rend(); ++it)
+                        LoadConfiguration(*it / "settings.cfg");
+                    for (auto it = configDirs.rbegin(); it != configDirs.rend(); ++it)
+                        LoadConfiguration(*it / "settings.cfg");
                     m_useFovTangent = m_fovTangentX != 1.f || m_fovTangentY != 1.f;
 
                     if (m_needDeferredSwapchainReleaseQuirk && m_useTurboMode) {

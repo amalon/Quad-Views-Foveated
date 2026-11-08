@@ -27,6 +27,7 @@
 #include "dispatch.h"
 #include "log.h"
 #include "version.h"
+#include "config.h"
 
 #if defined(_WIN32)
 #define OPENXR_API_LAYER_EXPORT __declspec(dllexport)
@@ -38,8 +39,12 @@ namespace openxr_api_layer {
     // The path where the DLL is loaded from (eg: to load data files).
     std::filesystem::path dllHome;
 
+    // The paths where user configuration is stored
+    std::vector<std::filesystem::path> configDirs;
+    // The paths to search for data files
+    std::vector<std::filesystem::path> dataDirs;
     // The path that is writable (eg: to store logs).
-    std::filesystem::path localAppData;
+    std::filesystem::path stateHome;
 
     namespace log {
         // The file logger.
@@ -75,16 +80,86 @@ XrResult OPENXR_API_LAYER_EXPORT XRAPI_CALL
         }
     }
 
-    localAppData = std::filesystem::path(getenv("LOCALAPPDATA")) / LayerPrettyName;
+    if (stateHome.empty())
+        stateHome = std::filesystem::path(getenv("LOCALAPPDATA")) / LayerPrettyName;
+    if (dataDirs.empty())
+        dataDirs.push_back(dllHome);
+    if (configDirs.empty())
+        configDirs.push_back(stateHome);
 #else
-    localAppData = std::filesystem::path(getenv("XDG_RUNTIME_DIR")) / LayerPrettyName;
+    // Get a path from an environment variable, falling back to fallback
+    const auto getEnvPath = [&](const char* envName,
+                                const std::filesystem::path& fallback) {
+        const char* val = getenv(envName);
+        if (val && val[0] != '\0')
+            return std::filesystem::path{val};
+        return fallback;
+    };
+    // Get a list of paths from an environment variable, separated by ':'
+    const auto getEnvPaths = [&](const char* envName,
+                                 const std::vector<std::filesystem::path>& fallback) {
+        const char* val = getenv(envName);
+        if (val && val[0] != '\0') {
+            std::vector<std::filesystem::path> ret;
+            std::stringstream ss(val);
+            std::string path;
+            while (getline(ss, path, ':')) {
+                ret.push_back(std::filesystem::path(path));
+            }
+            return ret;
+        }
+        return fallback;
+    };
+    // Push a path to the back, but only if its not already there
+    const auto pushUnique = [&](std::vector<std::filesystem::path>& list,
+                                const std::filesystem::path& item) {
+        if (std::find(list.begin(), list.end(), item) == list.end())
+            list.push_back(item);
+    };
+
+    // https://specifications.freedesktop.org/basedir/latest/
+    const auto home = getEnvPath("HOME", "");
+
+    // Configuration paths
+    if (configDirs.empty()) {
+        // $XDG_CONFIG_HOME, then $XDG_CONFIG_DIRS
+        const auto xdgConfigHome = getEnvPath("XDG_CONFIG_HOME",
+                                              home / ".config");
+        pushUnique(configDirs, xdgConfigHome / LayerPrettyName);
+        for (auto& path: getEnvPaths("XDG_CONFIG_DIRS",
+                                     { "/etc/xdg/" })) {
+            pushUnique(configDirs, path / LayerPrettyName);
+        }
+    }
+
+    // Data paths
+    if (dataDirs.empty()) {
+        // First the install directory from the build system
+        const auto dataDir = std::filesystem::path(CONFIG_DATADIR);
+        pushUnique(dataDirs, dataDir / LayerPrettyName);
+        // Then $XDG_DATA_HOME and $XDG_DATA_DIRS
+        const auto xdgDataHome = getEnvPath("XDG_DATA_HOME",
+                                            home / ".local/share");
+        pushUnique(dataDirs, xdgDataHome / LayerPrettyName);
+        for (auto& path: getEnvPaths("XDG_DATA_DIRS",
+                                     { "/usr/local/share/", "/usr/share/" }))
+            pushUnique(dataDirs, path / LayerPrettyName);
+    }
+
+    // State path
+    if (stateHome.empty()) {
+        // Use $XDG_STATE_HOME
+        const auto xdgStateHome = getEnvPath("XDG_STATE_HOME",
+                                             home / ".local" / "state");
+        stateHome = xdgStateHome / LayerPrettyName;
+    }
 #endif
 
-    std::filesystem::create_directory(localAppData.string());
+    std::filesystem::create_directory(stateHome.string());
 
     // Start logging to file.
     if (!logStream.is_open()) {
-        std::string logFile = (localAppData / (LayerPrettyName + ".log")).string();
+        std::string logFile = (stateHome / (LayerPrettyName + ".log")).string();
         logStream.open(logFile, std::ios_base::ate);
     }
 

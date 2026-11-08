@@ -30,5 +30,5 @@ install(TARGETS                   XrApiLayer_quad_views_foveated
 
 # Install settings file
 install(FILES       "${CMAKE_CURRENT_LIST_DIR}/settings.cfg"
-        DESTINATION "${CMAKE_INSTALL_SYSCONFDIR}/openxr/XrApiLayer_quad_views_foveated/"
+        DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/Quad-Views-Foveated/"
 )

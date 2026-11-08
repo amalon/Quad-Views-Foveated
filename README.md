@@ -15,15 +15,15 @@ $ cmake --install build
 Working features:
 - Compositing of quad views using OpenGL
 - `debug_focus_view`
-- Logging to `$XDG_RUNTIME_DIR/Quad-Views-Foveated/Quad-Views-Foveated.log`
+- Logging to `$HOME/.local/state/Quad-Views-Foveated/Quad-Views-Foveated.log`
+  (unless `$XDG_STATE_HOME` points elsewhere)
+- Reading `settings.cfg` from various system data and config locations. Put
+  overrides in `$HOME/.config/Quad-Views-Foveated/settings.cfg` (unless
+  `$XDG_CONFIG_HOME` points elsewhere). Check paths in log.
 
 New features of this port:
 - Stereo with Foveated Inset (OpenXR 1.1)
 - Handle mutable FOV
-
-Features not yet working:
-- Reading settings.cfg from a sensible location (for now, create a symlink at
-  `$XDG_RUNTIME_DIR/Quad-Views-Foveated/settings.cfg`)
 
 Features missing and unlikely:
 - Sharpening of focus view

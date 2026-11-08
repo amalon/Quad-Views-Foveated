@@ -33,11 +33,12 @@ namespace openxr_api_layer {
     // Singleton accessor.
     OpenXrApi* GetInstance();
 
-    // The path where the DLL is loaded from (eg: to load data files).
-    extern std::filesystem::path dllHome;
-
+    // The paths where user configuration is stored
+    extern std::vector<std::filesystem::path> configDirs;
+    // The paths to search for data files
+    extern std::vector<std::filesystem::path> dataDirs;
     // The path that is writable (eg: to store logs).
-    extern std::filesystem::path localAppData;
+    extern std::filesystem::path stateHome;
 
     extern const std::vector<std::pair<std::string, uint32_t>> advertisedExtensions;
     extern const std::vector<std::string> blockedExtensions;

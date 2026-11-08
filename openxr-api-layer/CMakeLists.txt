@@ -19,6 +19,11 @@ set(XrApiLayer_quad_views_foveated_VERSION_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/v
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/version.h.in"
                "${XrApiLayer_quad_views_foveated_VERSION_HEADER}")
 
+# Generate "config.h" header
+set(CONFIG_DATADIR "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATAROOTDIR}")
+set(XrApiLayer_quad_views_foveated_CONFIG_HEADER "${PROJECT_BINARY_DIR}/include/config.h")
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/config.h.in"
+               "${XrApiLayer_quad_views_foveated_CONFIG_HEADER}")
 
 set(LAYER_NAME "XR_APILAYER_MBUCCHIA_quad_views_foveated")
 add_compile_definitions(LAYER_NAME="${LAYER_NAME}")
@@ -29,7 +34,7 @@ string(REPLACE ".\\\\XR_APILAYER_name.dll" "../../../../../lib/$<TARGET_FILE_NAM
 string(REPLACE "XR_APILAYER_name" "@LAYER_NAME@" FILE_CONTENTS "${FILE_CONTENTS}")
 # Expand variables
 file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${LAYER_NAME}.json.in" CONTENT "${FILE_CONTENTS}")
-# Expand generator expressions 
+# Expand generator expressions
 file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${LAYER_NAME}.json" INPUT "${CMAKE_CURRENT_BINARY_DIR}/${LAYER_NAME}.json.in")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_LIST_DIR}/openxr-api-layer.json")
 
