@@ -3987,7 +3987,7 @@ namespace openxr_api_layer {
                     } else if (name == "unadvertise") {
                         m_unadvertiseQuadViews = std::stoi(value);
                         parsed = true;
-                    } else if (name == "quirk_begin_frame_before_wait") {
+                    } else if (name == "begin_frame_before_wait_quirk") {
                         m_quirkBeginFrameBeforeWait = std::stoi(value);
                         parsed = true;
                     } else if (name == "debug_simulate_tracking") {
