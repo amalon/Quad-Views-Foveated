@@ -913,6 +913,7 @@ namespace openxr_api_layer {
                 }
 
                 Log("Session is not using quad views\n");
+                m_useQuadViews = false;
             }
 
             const XrResult result = OpenXrApi::xrBeginSession(session, &chainBeginInfo);
