@@ -54,6 +54,7 @@ using namespace std::chrono_literals;
 
 #ifdef USE_VULKAN
 #define XR_USE_GRAPHICS_API_VULKAN
+#include <vulkan/vulkan.h>
 #endif
 
 #ifdef USE_GLX

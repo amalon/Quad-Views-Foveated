@@ -57,6 +57,7 @@ set(XrApiLayer_quad_views_foveated_SRCS
     utils/general.cpp
     utils/input.cpp
     utils/opengl.cpp
+    utils/vulkan.cpp
 )
 
 # OpenGL graphics bindings
@@ -77,7 +78,7 @@ endif()
 
 # Vulkan graphics bindings
 find_package(Vulkan)
-if(Vulkan_Found)
+if(Vulkan_FOUND)
     add_compile_definitions(USE_VULKAN)
 endif()
 
@@ -147,6 +148,7 @@ endforeach()
 target_link_libraries(XrApiLayer_quad_views_foveated
     PRIVATE
         ${OPENGL_LIBRARIES}
+        ${Vulkan_LIBRARIES}
         glm::glm
 )
 

@@ -39,7 +39,7 @@ namespace xr {
             return "OpenGL";
 #endif
 #ifdef XR_USE_GRAPHICS_API_VULKAN
-        case Api::OpenGL:
+        case Api::Vulkan:
             return "Vulkan";
 #endif
 #ifdef XR_USE_GRAPHICS_API_D3D11
