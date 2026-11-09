@@ -32,8 +32,6 @@ namespace {
     using namespace openxr_api_layer::log;
     using namespace openxr_api_layer::utils::graphics;
 
-    constexpr bool PreferNtHandle = false;
-
     // Platform traits provide a way to access the appropriate member of the
     // union in ContextVariant, based on the OpenXR binding struct.
     template <typename GraphicsBinding>
