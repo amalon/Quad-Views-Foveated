@@ -2127,32 +2127,24 @@ namespace openxr_api_layer {
             if (isSessionHandled(session)) {
                 if (m_requestedQuadViews && viewConfigurationType == XR_VIEW_CONFIGURATION_TYPE_PRIMARY_QUAD_VARJO &&
                     viewIndex >= xr::StereoView::Count) {
-                    if (m_useQuadViews) {
-                        // No mask on the focus view.
-                        if (viewIndex == xr::QuadView::FocusLeft || viewIndex == xr::QuadView::FocusRight) {
-                            visibilityMask->vertexCountOutput = 0;
-                            visibilityMask->indexCountOutput = 0;
+                    // No mask on the focus view.
+                    if (viewIndex == xr::QuadView::FocusLeft || viewIndex == xr::QuadView::FocusRight) {
+                        visibilityMask->vertexCountOutput = 0;
+                        visibilityMask->indexCountOutput = 0;
 
-                            result = XR_SUCCESS;
-                        } else {
-                            result = XR_ERROR_VALIDATION_FAILURE;
-                        }
+                        result = XR_SUCCESS;
                     } else {
-                        result = XR_ERROR_VIEW_CONFIGURATION_TYPE_UNSUPPORTED;
+                        result = XR_ERROR_VALIDATION_FAILURE;
                     }
                 } else {
                     // We will implement quad views on top of stereo. Use the regular mask for the peripheral view.
                     if (m_requestedQuadViews &&
                         viewConfigurationType == XR_VIEW_CONFIGURATION_TYPE_PRIMARY_QUAD_VARJO) {
-                        if (m_useQuadViews) {
-                            result = OpenXrApi::xrGetVisibilityMaskKHR(session,
-                                                                       XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO,
-                                                                       viewIndex,
-                                                                       visibilityMaskType,
-                                                                       visibilityMask);
-                        } else {
-                            result = XR_ERROR_VIEW_CONFIGURATION_TYPE_UNSUPPORTED;
-                        }
+                        result = OpenXrApi::xrGetVisibilityMaskKHR(session,
+                                                                   XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO,
+                                                                   viewIndex,
+                                                                   visibilityMaskType,
+                                                                   visibilityMask);
                     } else if (m_useFovTangent && viewConfigurationType == XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO) {
                         // No mask when FOV tangent is used.
                         visibilityMask->vertexCountOutput = 0;
