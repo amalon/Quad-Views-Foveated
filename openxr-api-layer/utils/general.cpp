@@ -133,6 +133,7 @@ namespace openxr_api_layer::utils::general {
         return rayIntersectQuad(rayPosition, rayDirection, v0, v1, v2, v3, &hitPose);
     }
 
+#if 0 // FIXME Pose::Multiply
     // https://gamedev.stackexchange.com/questions/136652/uv-world-mapping-in-shader-with-unity/136720#136720
     XrVector2f getUVCoordinates(const XrVector3f& point, const XrPosef& quadCenter, const XrExtent2Df& quadSize) {
         using namespace xr::math;
@@ -153,5 +154,6 @@ namespace openxr_api_layer::utils::general {
             (-Dot(vDirection, point) + (quadSize.height / 2.f)) / quadSize.height,
         };
     }
+#endif
 
 } // namespace openxr_api_layer::utils::general

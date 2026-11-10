@@ -24,10 +24,10 @@ namespace xr::math {
         constexpr XrPosef Identity();
         constexpr XrPosef Translation(const XrVector3f& translation);
 
-        XrPosef LookAt(const XrVector3f& origin, const XrVector3f& forward, const XrVector3f& up);
-        XrPosef Multiply(const XrPosef& a, const XrPosef& b);
+        //XrPosef LookAt(const XrVector3f& origin, const XrVector3f& forward, const XrVector3f& up);
+        //XrPosef Multiply(const XrPosef& a, const XrPosef& b);
         XrPosef Slerp(const XrPosef& a, const XrPosef& b, float alpha);
-        XrPosef Invert(const XrPosef& pose);
+        //XrPosef Invert(const XrPosef& pose);
 
         constexpr bool IsPoseValid(const XrSpaceLocation& location);
         constexpr bool IsPoseTracked(const XrSpaceLocation& location);
@@ -42,9 +42,9 @@ namespace xr::math {
 
     namespace Quaternion {
         constexpr XrQuaternionf Identity();
-        bool IsNormalized(const XrQuaternionf& quaternion);
-        XrQuaternionf RotationAxisAngle(const XrVector3f& axis, float angleInRadians);
-        XrQuaternionf RotationRollPitchYaw(const XrVector3f& eulerAnglesInRadians);
+        //bool IsNormalized(const XrQuaternionf& quaternion);
+        //XrQuaternionf RotationAxisAngle(const XrVector3f& axis, float angleInRadians);
+        //XrQuaternionf RotationRollPitchYaw(const XrVector3f& eulerAnglesInRadians);
         XrQuaternionf Slerp(const XrQuaternionf& a, const XrQuaternionf& b, float alpha);
     } // namespace Quaternion
 
@@ -347,12 +347,12 @@ namespace xr::math {
         }
     } // namespace Pose
 
-#ifdef _WIN32
     namespace Quaternion {
         constexpr inline XrQuaternionf Identity() {
             return {0, 0, 0, 1};
         }
 
+#ifdef _WIN32
         inline float Length(const XrQuaternionf& quaternion) {
             DirectX::XMVECTOR vector = LoadXrQuaternion(quaternion);
             return DirectX::XMVectorGetX(DirectX::XMVector4Length(vector));
@@ -373,22 +373,24 @@ namespace xr::math {
             StoreXrQuaternion(&q, DirectX::XMQuaternionRotationRollPitchYaw(anglesInRadians.x, anglesInRadians.y, anglesInRadians.z));
             return q;
         }
+#endif // _WIN32
 
         inline XrQuaternionf Slerp(const XrQuaternionf& a, const XrQuaternionf& b, float alpha) {
-            DirectX::XMVECTOR qa = LoadXrQuaternion(a);
-            DirectX::XMVECTOR qb = LoadXrQuaternion(b);
-            DirectX::XMVECTOR qr = DirectX::XMQuaternionSlerp(qa, qb, alpha);
+            glm::quat qa = LoadXrQuaternion(a);
+            glm::quat qb = LoadXrQuaternion(b);
+            glm::quat qr = glm::slerp(qa, qb, alpha);
             XrQuaternionf result;
             StoreXrQuaternion(&result, qr);
             return result;
         }
 
     } // namespace Quaternion
-#endif // _WIN32
 
+#if 0 // FIXME Pose::Multiply
     inline XrPosef operator*(const XrPosef& a, const XrPosef& b) {
         return Pose::Multiply(a, b);
     }
+#endif
 
     inline float Dot(const XrVector3f& a, const XrVector3f& b) {
         return a.x * b.x + a.y * b.y + a.z * b.z;
