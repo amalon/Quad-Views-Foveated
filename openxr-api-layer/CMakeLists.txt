@@ -60,30 +60,16 @@ set(XrApiLayer_quad_views_foveated_SRCS
     utils/vulkan.cpp
 )
 
-# OpenGL graphics bindings
-find_package(OpenGL COMPONENTS EGL GLX OpenGL)
-if(OpenGL_OpenGL_FOUND)
-    add_compile_definitions(USE_OPENGL)
-endif()
-if(OpenGL_GLX_FOUND)
-    add_compile_definitions(USE_GLX)
-endif()
-if(OpenGL_EGL_FOUND)
-    add_compile_definitions(USE_EGL)
-endif()
-find_package(X11 COMPONENTS xcb)
-if (X11_xcb_FOUND)
-    add_compile_definitions(USE_XCB)
-endif()
-
-# Vulkan graphics bindings
-find_package(Vulkan)
-if(Vulkan_FOUND)
-    add_compile_definitions(USE_VULKAN)
-endif()
-
 # Build XrApiLayer_quad_views_foveated as a library
-add_library(XrApiLayer_quad_views_foveated MODULE ${XrApiLayer_quad_views_foveated_SRCS})
+add_library(XrApiLayer_quad_views_foveated
+    MODULE
+        ${XrApiLayer_quad_views_foveated_SRCS}
+)
+
+set_target_properties(XrApiLayer_quad_views_foveated
+    PROPERTIES
+        VERSION         ${PROJECT_VERSION}
+)
 
 # Ensure required C++ standards are available
 target_compile_features(XrApiLayer_quad_views_foveated
@@ -103,6 +89,47 @@ target_include_directories(XrApiLayer_quad_views_foveated
         ${PROJECT_SOURCE_DIR}/external/OpenXR-MixedReality/shared/XrUtility
         ${PROJECT_SOURCE_DIR}/external/FidelityFX-CAS/ffx-cas
 )
+
+target_link_libraries(XrApiLayer_quad_views_foveated
+    PRIVATE
+        glm::glm
+)
+
+# OpenGL graphics bindings
+find_package(OpenGL COMPONENTS EGL GLX OpenGL)
+if(OpenGL_OpenGL_FOUND)
+    add_compile_definitions(USE_OPENGL)
+    target_link_libraries(XrApiLayer_quad_views_foveated
+        PRIVATE OpenGL::OpenGL)
+
+    if(OpenGL_GLX_FOUND)
+        add_compile_definitions(USE_GLX)
+        target_link_libraries(XrApiLayer_quad_views_foveated
+            PRIVATE OpenGL::GLX)
+    endif()
+
+    if(OpenGL_EGL_FOUND)
+        add_compile_definitions(USE_EGL)
+        target_link_libraries(XrApiLayer_quad_views_foveated
+            PRIVATE OpenGL::EGL)
+    endif()
+
+    # Unsupported for now
+    #find_package(X11 COMPONENTS xcb)
+    #if (X11_xcb_FOUND)
+    #    add_compile_definitions(USE_XCB)
+    #    target_link_libraries(XrApiLayer_quad_views_foveated
+    #        PRIVATE X11:xcb)
+    #endif()
+endif()
+
+# Vulkan graphics bindings
+find_package(Vulkan)
+if(Vulkan_FOUND)
+    add_compile_definitions(USE_VULKAN)
+    target_link_libraries(XrApiLayer_quad_views_foveated
+        PRIVATE Vulkan::Vulkan)
+endif()
 
 # GLSL shaders
 set(XrApiLayer_quad_views_foveated_GLSL
@@ -144,15 +171,3 @@ foreach(GLSL_FILE IN LISTS XrApiLayer_quad_views_foveated_GLSL)
     )
     add_dependencies(XrApiLayer_quad_views_foveated wrap_${GLSL_FILE})
 endforeach()
-
-target_link_libraries(XrApiLayer_quad_views_foveated
-    PRIVATE
-        ${OPENGL_LIBRARIES}
-        ${Vulkan_LIBRARIES}
-        glm::glm
-)
-
-set_target_properties(XrApiLayer_quad_views_foveated
-    PROPERTIES
-        VERSION         ${PROJECT_VERSION}
-)

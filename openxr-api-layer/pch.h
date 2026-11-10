@@ -67,16 +67,12 @@ using namespace std::chrono_literals;
 #endif
 
 #ifdef USE_XCB
-// Unsupported for now
-//#define XR_USE_PLATFORM_XCB
-//#include <xcb/glx.h>
+#define XR_USE_PLATFORM_XCB
+#include <xcb/glx.h>
 #endif
 
 #ifdef USE_EGL
 #define XR_USE_PLATFORM_EGL
-// 22     #include <X11/X.h>
-// 23     #include <X11/Xlib.h>
-// 24     #include <X11/Xutil.h>
 #include <EGL/egl.h>
 #endif
 
