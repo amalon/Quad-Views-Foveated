@@ -2876,7 +2876,7 @@ namespace openxr_api_layer {
                         glDisable(GL_FRAMEBUFFER_SRGB);
 
                     // Restore textures and samplers
-                    for (unsigned int i = 0; i < 2; ++i) {
+                    for (unsigned int i = 0; i < 4; ++i) {
                         gl.ActiveTexture(GL_TEXTURE0 + i);
                         glBindTexture(GL_TEXTURE_2D, prevTexture[i]);
                         glBindTexture(GL_TEXTURE_2D_ARRAY, prevTextureArray[i]);
