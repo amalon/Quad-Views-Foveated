@@ -1786,6 +1786,7 @@ namespace openxr_api_layer {
                                                 swapchainsToRelease.insert(depth->subImage.swapchain);
                                                 swapchainForDepthInfo->deferredRelease = false;
                                             }
+                                            break;
                                         }
                                         entry = entry->next;
                                     }
