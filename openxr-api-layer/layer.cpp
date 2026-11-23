@@ -2257,6 +2257,19 @@ namespace openxr_api_layer {
                                       "Creating Full Fov FBO",
                                       TLArg(viewIndex, "viewIndex"),
                                       TLArg(acquiredImageIndex, "acquiredImageIndex"));
+                    if (apiHelper->m_layer->m_debugApitraceTeximage) {
+                        // For the sake of apitrace, call glTexImage2D on each
+                        // texture image used so replays don't trigger
+                        // incomplete FBOs
+                        GLint prevTexture;
+                        glGetIntegerv(GL_TEXTURE_BINDING_2D, &prevTexture);
+                        glBindTexture(GL_TEXTURE_2D, fullFovSwapchainImages[viewIndex][acquiredImageIndex]);
+                        glTexImage2D(GL_TEXTURE_2D, 0, (GLenum)createInfo.format,
+                                     apiHelper->m_layer->m_fullFovResolution.width,
+                                     apiHelper->m_layer->m_fullFovResolution.height, 0, GL_RGB,
+                                     GL_UNSIGNED_BYTE, nullptr);
+                        glBindTexture(GL_TEXTURE_2D, prevTexture);
+                    }
                     // Create FBO
                     apiHelper->gl.GenFramebuffers(1, &fbo);
                     // Bind FBO
@@ -3995,6 +4008,9 @@ namespace openxr_api_layer {
                     } else if (name == "debug_keys") {
                         m_debugKeys = std::stoi(value);
                         parsed = true;
+                    } else if (name == "debug_apitrace_teximage") {
+                        m_debugApitraceTeximage = std::stoi(value);
+                        parsed = true;
                     } else {
                         Log("L%u: Unrecognized option\n", lineNumber);
                     }
@@ -4128,6 +4144,7 @@ namespace openxr_api_layer {
         bool m_debugEyeGaze{false};
         bool m_debugSimulateTracking{false};
         bool m_debugKeys{false};
+        bool m_debugApitraceTeximage{false};
 
         std::shared_ptr<general::ITimer> m_appFrameCpuTimer;
         std::shared_ptr<general::ITimer> m_appRenderCpuTimer;
