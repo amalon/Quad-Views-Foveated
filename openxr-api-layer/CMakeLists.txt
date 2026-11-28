@@ -155,7 +155,7 @@ else()
 endif()
 
 # Wrap shaders with raw string literals
-make_directory("${PROJECT_BINARY_DIR}/include")
+file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/include")
 foreach(GLSL_FILE IN LISTS XrApiLayer_quad_views_foveated_GLSL)
     add_custom_command(
         OUTPUT "${PROJECT_BINARY_DIR}/include/${GLSL_FILE}.h"
